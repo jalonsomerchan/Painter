@@ -665,15 +665,15 @@ button:active {
 
 .floating-brush {
   position: absolute;
-  left: -1.2rem;
-  top: -4.8rem;
-  width: 2.4rem;
-  height: 7rem;
+  z-index: 4;
+  left: -1.7rem;
+  top: -9rem;
+  width: 3.4rem;
+  height: 9.15rem;
   opacity: 0;
-  transform-origin: 50% 85%;
+  transform-origin: 50% 100%;
   pointer-events: none;
   will-change: transform;
-  filter: drop-shadow(0 7px 5px rgba(72,59,44,.2));
 }
 
 .floating-brush i {
@@ -681,31 +681,165 @@ button:active {
   display: block;
 }
 
+.brush-cast-shadow {
+  left: 1.05rem;
+  top: .55rem;
+  width: 1.1rem;
+  height: 8.35rem;
+  border-radius: 50%;
+  background: rgba(71, 57, 42, .21);
+  filter: blur(6px);
+  transform: translate(.45rem, .35rem);
+}
+
 .brush-handle {
-  left: .85rem;
+  left: 1.13rem;
   top: 0;
-  width: .65rem;
-  height: 4.9rem;
-  border-radius: 99px 99px .3rem .3rem;
-  background: #866044;
+  width: 1.05rem;
+  height: 5.65rem;
+  overflow: hidden;
+  border-radius: 70% 70% .35rem .35rem;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.18), transparent 35% 68%, rgba(64,39,24,.18)),
+    #936949;
+  box-shadow: inset 0 0 0 1px rgba(71, 43, 25, .14);
+}
+
+.brush-handle::after {
+  content: "";
+  position: absolute;
+  left: .2rem;
+  top: .5rem;
+  width: .17rem;
+  height: 3.8rem;
+  border-radius: 99px;
+  background: rgba(255,255,255,.13);
+}
+
+.brush-handle b {
+  position: absolute;
+  left: .38rem;
+  top: .32rem;
+  width: .28rem;
+  height: .28rem;
+  border-radius: 50%;
+  background: #5f452f;
+  box-shadow: inset 0 1px 1px rgba(0,0,0,.28), 0 1px 0 rgba(255,255,255,.17);
 }
 
 .brush-metal {
-  left: .43rem;
-  top: 3.65rem;
-  width: 1.5rem;
-  height: 1.05rem;
-  border-radius: .2rem;
-  background: #aaa494;
+  left: .58rem;
+  top: 4.7rem;
+  width: 2.15rem;
+  height: 1.55rem;
+  border-radius: .26rem .26rem .12rem .12rem;
+  background:
+    linear-gradient(90deg, #9b978c 0%, #d1cdc0 27%, #8d8a81 70%, #bbb6a9 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.46), 0 2px 2px rgba(57,47,37,.12);
 }
 
+.brush-metal::before,
+.brush-metal::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(67,64,57,.22);
+}
+
+.brush-metal::before { top: .35rem; }
+.brush-metal::after { bottom: .28rem; }
+
+.brush-metal b {
+  position: absolute;
+  top: .68rem;
+  width: .23rem;
+  height: .23rem;
+  border-radius: 50%;
+  background: #77756d;
+  box-shadow: inset 0 1px 1px rgba(0,0,0,.28), 0 1px 0 rgba(255,255,255,.35);
+}
+
+.brush-metal b:first-child { left: .42rem; }
+.brush-metal b:last-child { right: .42rem; }
+
 .brush-bristles {
-  left: .22rem;
-  top: 4.5rem;
-  width: 1.95rem;
-  height: 2.3rem;
-  border-radius: .2rem .2rem .8rem .8rem;
-  transition: background 160ms ease;
+  left: .42rem;
+  top: 5.95rem;
+  width: 2.48rem;
+  height: 3.05rem;
+  overflow: hidden;
+  border-radius: .12rem .12rem .78rem .78rem;
+  background:
+    linear-gradient(90deg, rgba(62,48,37,.15), transparent 18% 77%, rgba(62,48,37,.15)),
+    var(--brush-color);
+  transform-origin: 50% 100%;
+  transition: background 160ms ease, width 90ms ease, left 90ms ease, height 90ms ease, top 90ms ease;
+  box-shadow: inset 0 .3rem .45rem rgba(62,44,30,.13);
+}
+
+.brush-bristles::after {
+  content: "";
+  position: absolute;
+  inset: 1.15rem 0 0;
+  background: linear-gradient(rgba(255,255,255,.07), rgba(48,35,28,.09));
+  border-radius: 0 0 .75rem .75rem;
+}
+
+.brush-bristles b {
+  position: absolute;
+  z-index: 2;
+  left: .32rem;
+  top: .4rem;
+  width: .34rem;
+  height: 1.5rem;
+  border-radius: 99px;
+  background: rgba(255,255,255,.14);
+  transform: rotate(4deg);
+}
+
+.brush-bristles span {
+  position: relative;
+  z-index: 3;
+  float: left;
+  width: 20%;
+  height: 100%;
+  border-right: 1px solid rgba(68,50,38,.11);
+}
+
+.brush-bristles span:nth-of-type(2) { height: 96%; }
+.brush-bristles span:nth-of-type(3) { height: 99%; }
+.brush-bristles span:nth-of-type(4) { height: 94%; }
+
+.brush-paint-bead {
+  z-index: 5;
+  left: 1.44rem;
+  bottom: -.08rem;
+  width: .42rem;
+  height: .22rem;
+  border-radius: 50%;
+  background: var(--brush-color);
+  opacity: .72;
+  transform: scale(0);
+  transform-origin: center;
+}
+
+.floating-brush[data-painting="true"] .brush-bristles {
+  left: .28rem;
+  top: 6.25rem;
+  width: 2.76rem;
+  height: 2.74rem;
+}
+
+.floating-brush[data-painting="true"] .brush-paint-bead {
+  animation: paint-bead 1.3s ease-in-out infinite;
+}
+
+@keyframes paint-bead {
+  0%, 35% { transform: scale(.5); opacity: .45; }
+  70% { transform: translateY(.16rem) scale(1); opacity: .75; }
+  100% { transform: translateY(.26rem) scale(.35); opacity: 0; }
 }
 
 .play-tools {

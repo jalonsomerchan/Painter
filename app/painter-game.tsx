@@ -55,6 +55,18 @@ const PALETTES = [
   ["#B09AB8", "#D0A678", "#87A59A"],
   ["#879F96", "#C6938A", "#D4B17C"],
   ["#8FA593", "#C99288", "#AAA0C2"],
+  ["#D0A06F", "#91A595", "#C68E86"],
+  ["#9BAA91", "#D2A078", "#A59ABD"],
+  ["#8DA49B", "#B99B82"],
+  ["#C38F86", "#91A595", "#C9A86F"],
+  ["#9CA8C0", "#C99682"],
+  ["#91A18D", "#C69A82", "#A79BBB"],
+  ["#A59ABE", "#D0A071", "#809D92"],
+  ["#8BA196", "#C78F84", "#D2B079"],
+  ["#9AA98E", "#C59083"],
+  ["#A89BBC", "#88A095", "#D1A16F"],
+  ["#8EA39B", "#C68F82", "#C9A873"],
+  ["#8AA096", "#C88F83", "#A59ABD"],
 ];
 
 const LEVEL_INFO = [
@@ -69,8 +81,22 @@ const LEVEL_INFO = [
   ["Mantita", "Un patrón sencillo, casilla a casilla."],
   ["Jardín lento", "Tres colores entre hojas blancas."],
   ["Terrazo", "Pequeñas formas, mucha paciencia."],
-  ["Anillos", "El último mural respira desde el centro."],
+  ["Anillos", "Un mural que respira desde el centro."],
+  ["Rayos de sol", "Gira alrededor de un centro protegido."],
+  ["La casa de té", "Toldos, ventanas y tres tonos tranquilos."],
+  ["El sendero", "Un río suave serpentea entre las piedras."],
+  ["Vidriera", "Cada cristal tiene su propio color."],
+  ["Nubes bajas", "Pinta el cielo y deja pasar las nubes."],
+  ["La estantería", "Muchos rincones separados por madera."],
+  ["Montañas", "Tres capas que se encuentran en el horizonte."],
+  ["Espiral", "Sigue el giro desde fuera hacia dentro."],
+  ["Jarrones", "Dos paredes y tres siluetas delicadas."],
+  ["Jardín zen", "Rodea las piedras con ondas de color."],
+  ["Casitas", "Una pequeña calle al caer la tarde."],
+  ["El gran mural", "Todo lo aprendido, reunido con calma."],
 ];
+
+const TOTAL_LEVELS = LEVEL_INFO.length;
 
 const defaultSave: SaveData = {
   unlocked: 1,
@@ -87,6 +113,22 @@ function buildLevel(number: number): Level {
   };
   const inCircle = (x: number, y: number, cx: number, cy: number, r: number) =>
     (x - cx) ** 2 + (y - cy) ** 2 < r ** 2;
+  const inEllipse = (
+    x: number,
+    y: number,
+    cx: number,
+    cy: number,
+    rx: number,
+    ry: number,
+  ) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 < 1;
+  const inRect = (
+    x: number,
+    y: number,
+    left: number,
+    top: number,
+    right: number,
+    bottom: number,
+  ) => x > left && x < right && y > top && y < bottom;
 
   for (let y = 0; y < ROWS; y++) {
     for (let x = 0; x < COLS; x++) {
@@ -138,6 +180,124 @@ function buildLevel(number: number): Level {
         if (d < 6) set(x, y, PROTECTED);
         else set(x, y, d < 15 ? 2 : d < 24 ? 1 : 0);
       }
+      if (n === 13) {
+        const dx = x - COLS / 2;
+        const dy = y - ROWS / 2;
+        const d = Math.hypot(dx, dy);
+        if (d < 7) set(x, y, PROTECTED);
+        else {
+          const sector = Math.floor(((Math.atan2(dy, dx) + Math.PI) / (Math.PI * 2)) * 12);
+          set(x, y, sector % 3);
+        }
+      }
+      if (n === 14) {
+        set(x, y, y < 14 ? 1 : 0);
+        if (y > 19 && y < 27) set(x, y, Math.floor(x / 8) % 2 ? 1 : 2);
+        const windows =
+          inRect(x, y, 9, 31, 25, 48) ||
+          inRect(x, y, 51, 31, 67, 48) ||
+          inRect(x, y, 31, 34, 45, 56);
+        if (windows) set(x, y, PROTECTED);
+      }
+      if (n === 15) {
+        const riverY = 28 + Math.sin(nx * Math.PI * 2.4) * 11;
+        set(x, y, Math.abs(y - riverY) < 7 ? 1 : 0);
+        const stones =
+          inEllipse(x, y, 17, 17, 5, 3) ||
+          inEllipse(x, y, 44, 35, 6, 3.5) ||
+          inEllipse(x, y, 63, 18, 4.5, 3);
+        if (stones) set(x, y, PROTECTED);
+      }
+      if (n === 16) {
+        const diagonalGrid =
+          Math.abs(((x + y + 100) % 18) - 9) < 1.15 ||
+          Math.abs(((x - y + 100) % 18) - 9) < 1.15;
+        if (diagonalGrid) set(x, y, PROTECTED);
+        else set(x, y, (Math.floor((x + y) / 10) + Math.floor((x - y + 90) / 14)) % 3);
+      }
+      if (n === 17) {
+        set(x, y, ny < 0.62 + Math.sin(nx * Math.PI * 2) * 0.06 ? 0 : 1);
+        const cloud =
+          inEllipse(x, y, 18, 18, 11, 4.5) ||
+          inCircle(x, y, 14, 15, 5) ||
+          inCircle(x, y, 22, 14, 6) ||
+          inEllipse(x, y, 54, 31, 13, 5) ||
+          inCircle(x, y, 49, 27, 6) ||
+          inCircle(x, y, 59, 27, 7);
+        if (cloud) set(x, y, PROTECTED);
+      }
+      if (n === 18) {
+        const shelf = Math.abs(y - 18) < 1.5 || Math.abs(y - 37) < 1.5;
+        const upright =
+          (y < 18 && (Math.abs(x - 25) < 1.2 || Math.abs(x - 51) < 1.2)) ||
+          (y > 19 && y < 37 && Math.abs(x - 38) < 1.2) ||
+          (y > 38 && (Math.abs(x - 19) < 1.2 || Math.abs(x - 57) < 1.2));
+        if (shelf || upright) set(x, y, PROTECTED);
+        else set(x, y, (Math.floor(x / 19) + Math.floor(y / 18)) % 3);
+      }
+      if (n === 19) {
+        const ridgeOne = 35 - Math.abs(x - 22) * 0.55;
+        const ridgeTwo = 38 - Math.abs(x - 54) * 0.46;
+        if (y < Math.min(ridgeOne, ridgeTwo)) set(x, y, 0);
+        else if (y < Math.max(ridgeOne + 10, ridgeTwo + 8)) set(x, y, 1);
+        else set(x, y, 2);
+      }
+      if (n === 20) {
+        const dx = x - COLS / 2;
+        const dy = y - ROWS / 2;
+        const d = Math.hypot(dx, dy);
+        const spiral = Math.floor((Math.atan2(dy, dx) + d * 0.27 + Math.PI * 5) / 1.15);
+        if (d < 5) set(x, y, PROTECTED);
+        else set(x, y, Math.abs(spiral) % 3);
+      }
+      if (n === 21) {
+        set(x, y, x < COLS / 2 ? 0 : 1);
+        const vaseOne =
+          inEllipse(x, y, 16, 39, 8, 13) || inRect(x, y, 13, 17, 19, 30);
+        const vaseTwo =
+          inEllipse(x, y, 39, 35, 10, 16) || inRect(x, y, 35, 11, 43, 24);
+        const vaseThree =
+          inEllipse(x, y, 62, 40, 7, 11) || inRect(x, y, 59, 23, 65, 32);
+        if (vaseOne || vaseTwo || vaseThree) set(x, y, PROTECTED);
+      }
+      if (n === 22) {
+        const stoneOne = inEllipse(x, y, 24, 29, 7, 4);
+        const stoneTwo = inEllipse(x, y, 53, 22, 9, 5);
+        const nearest = Math.min(
+          Math.hypot((x - 24) * 0.8, y - 29),
+          Math.hypot((x - 53) * 0.75, y - 22),
+        );
+        set(x, y, Math.floor(nearest / 5) % 2);
+        if (stoneOne || stoneTwo) set(x, y, PROTECTED);
+      }
+      if (n === 23) {
+        const block = Math.floor(x / 13);
+        const heights = [27, 18, 31, 22, 15, 29];
+        const roof = heights[Math.min(block, heights.length - 1)];
+        if (y < roof) set(x, y, 0);
+        else set(x, y, block % 2 ? 1 : 2);
+        const localX = x % 13;
+        if (y > roof + 7 && y < roof + 13 && localX > 4 && localX < 8)
+          set(x, y, PROTECTED);
+        if (y > 45 && localX > 8 && localX < 12) set(x, y, PROTECTED);
+      }
+      if (n === 24) {
+        const dx = x - COLS / 2;
+        const dy = y - ROWS / 2;
+        const d = Math.hypot(dx, dy);
+        if (ny < 0.34) {
+          set(x, y, Math.floor((Math.atan2(dy, dx) + Math.PI) / 0.8) % 3);
+        } else if (nx < 0.5) {
+          set(x, y, Math.floor((ny * 8 + Math.sin(nx * 13)) % 3));
+        } else {
+          set(x, y, Math.floor(d / 8) % 3);
+        }
+        const leaf =
+          inEllipse(x, y, 38, 28, 6, 16) ||
+          inEllipse(x, y, 31, 29, 5, 12) ||
+          inEllipse(x, y, 45, 29, 5, 12);
+        if (leaf) set(x, y, PROTECTED);
+      }
     }
   }
   return {
@@ -150,15 +310,22 @@ function buildLevel(number: number): Level {
   };
 }
 
-const BUILT_LEVELS = Array.from({ length: 12 }, (_, index) => buildLevel(index + 1));
+const BUILT_LEVELS = Array.from(
+  { length: TOTAL_LEVELS },
+  (_, index) => buildLevel(index + 1),
+);
 
 function loadSave(): SaveData {
   if (typeof window === "undefined") return defaultSave;
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    const completed = Array.isArray(parsed.completed) ? parsed.completed : [];
+    const earnedUnlock = completed.length
+      ? Math.min(TOTAL_LEVELS, Math.max(...completed) + 1)
+      : 1;
     return {
-      unlocked: Math.max(1, Number(parsed.unlocked) || 1),
-      completed: Array.isArray(parsed.completed) ? parsed.completed : [],
+      unlocked: Math.max(1, earnedUnlock, Number(parsed.unlocked) || 1),
+      completed,
       best: parsed.best || {},
       customLevels: Array.isArray(parsed.customLevels) ? parsed.customLevels : [],
     };
@@ -343,7 +510,7 @@ function LevelsScreen({
       <header className="page-header">
         <button className="round-button back" onClick={onBack} aria-label="Volver">←</button>
         <div><p className="eyebrow">Tu paseo</p><h2>Niveles</h2></div>
-        <span className="progress-badge">{save.completed.length}/12</span>
+        <span className="progress-badge">{save.completed.length}/{TOTAL_LEVELS}</span>
       </header>
       <div className="level-path">
         {BUILT_LEVELS.map((level, index) => {
@@ -400,15 +567,19 @@ function PlayScreen({
   const brushRef = useRef<HTMLDivElement>(null);
   const paintRef = useRef(new Uint8Array(COLS * ROWS).fill(EMPTY));
   const mistakeRef = useRef(new Uint8Array(COLS * ROWS));
+  const strokeMarksRef = useRef<
+    Array<{ x: number; y: number; color: number; radius: number }>
+  >([]);
   const drawingRef = useRef(false);
   const lastRef = useRef<{ x: number; y: number } | null>(null);
+  const brushScreenRef = useRef<{ left: number; top: number } | null>(null);
   const selectedRef = useRef(0);
   const [selected, setSelected] = useState(0);
   const [progress, setProgress] = useState(0);
   const [penalty, setPenalty] = useState(0);
   const [finished, setFinished] = useState(false);
   const targetCount = useMemo(
-    () => level.desired.filter((v) => v !== PROTECTED).length,
+    () => Math.max(1, level.desired.filter((v) => v !== PROTECTED).length),
     [level],
   );
 
@@ -444,6 +615,31 @@ function PlayScreen({
       }
     }
 
+    const recentMarks = strokeMarksRef.current.slice(-24);
+    for (const mark of recentMarks) {
+      const color = level.colors[mark.color] || level.colors[0];
+      ctx.globalAlpha = 0.92;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.ellipse(
+        mark.x,
+        mark.y,
+        mark.radius * 1.08,
+        mark.radius * 0.88,
+        -0.2,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+      ctx.globalAlpha = 0.14;
+      ctx.strokeStyle = "#fff8ec";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(mark.x - mark.radius * 0.65, mark.y - mark.radius * 0.22);
+      ctx.lineTo(mark.x + mark.radius * 0.45, mark.y - mark.radius * 0.05);
+      ctx.stroke();
+    }
+
     ctx.globalAlpha = 0.1;
     ctx.strokeStyle = "#6e665d";
     ctx.lineWidth = 1;
@@ -474,10 +670,18 @@ function PlayScreen({
     return next;
   };
 
-  const applyPoint = (px: number, py: number) => {
+  const applyPoint = (px: number, py: number, pressure = 0.5) => {
     const gx = (px / 720) * COLS;
     const gy = (py / 530) * ROWS;
-    const radius = 3.6;
+    const radius = 3.2 + pressure * 1.3;
+    strokeMarksRef.current.push({
+      x: px,
+      y: py,
+      color: selectedRef.current,
+      radius: (radius / COLS) * 720,
+    });
+    if (strokeMarksRef.current.length > 360)
+      strokeMarksRef.current.splice(0, 120);
     let newMistakes = 0;
     for (let y = Math.floor(gy - radius); y <= Math.ceil(gy + radius); y++) {
       for (let x = Math.floor(gx - radius); x <= Math.ceil(gx + radius); x++) {
@@ -519,10 +723,16 @@ function PlayScreen({
     };
   };
 
-  const moveBrush = (left: number, top: number, visible = true) => {
+  const moveBrush = (
+    left: number,
+    top: number,
+    visible = true,
+    angle = -25,
+  ) => {
     if (!brushRef.current) return;
-    brushRef.current.style.transform = `translate3d(${left}px, ${top}px, 0) rotate(-28deg)`;
+    brushRef.current.style.transform = `translate3d(${left}px, ${top}px, 0) rotate(${angle}deg)`;
     brushRef.current.style.opacity = visible ? "1" : "0";
+    brushScreenRef.current = { left, top };
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -530,13 +740,17 @@ function PlayScreen({
     drawingRef.current = true;
     const p = pointerPosition(event);
     lastRef.current = { x: p.x, y: p.y };
-    moveBrush(p.left, p.top);
-    applyPoint(p.x, p.y);
+    if (brushRef.current) brushRef.current.dataset.painting = "true";
+    moveBrush(p.left, p.top, true, -25);
+    applyPoint(p.x, p.y, event.pressure || 0.5);
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     const p = pointerPosition(event);
-    moveBrush(p.left, p.top);
+    const previousScreen = brushScreenRef.current;
+    const horizontalSpeed = previousScreen ? p.left - previousScreen.left : 0;
+    const angle = -25 + Math.max(-12, Math.min(12, horizontalSpeed * 1.7));
+    moveBrush(p.left, p.top, true, angle);
     if (!drawingRef.current || !lastRef.current) return;
     const last = lastRef.current;
     const distance = Math.hypot(p.x - last.x, p.y - last.y);
@@ -545,6 +759,7 @@ function PlayScreen({
       applyPoint(
         last.x + ((p.x - last.x) * i) / steps,
         last.y + ((p.y - last.y) * i) / steps,
+        event.pressure || 0.5,
       );
     }
     lastRef.current = { x: p.x, y: p.y };
@@ -554,6 +769,7 @@ function PlayScreen({
     if (!drawingRef.current) return;
     drawingRef.current = false;
     lastRef.current = null;
+    if (brushRef.current) brushRef.current.dataset.painting = "false";
     const current = calculateProgress();
     if (current >= COMPLETION && !finished) {
       setFinished(true);
@@ -564,7 +780,10 @@ function PlayScreen({
         best: { ...save.best, [level.id]: Math.max(save.best[level.id] || 0, score) },
       };
       if (level.number) {
-        next.unlocked = Math.max(save.unlocked, Math.min(12, level.number + 1));
+        next.unlocked = Math.max(
+          save.unlocked,
+          Math.min(TOTAL_LEVELS, level.number + 1),
+        );
         next.completed = Array.from(new Set([...save.completed, level.number]));
       }
       updateSave(next);
@@ -577,7 +796,9 @@ function PlayScreen({
   };
 
   const nextBuilt =
-    level.number && level.number < 12 ? BUILT_LEVELS[level.number] : null;
+    level.number && level.number < TOTAL_LEVELS
+      ? BUILT_LEVELS[level.number]
+      : null;
 
   return (
     <section className="play-screen screen-enter">
@@ -610,9 +831,20 @@ function PlayScreen({
           aria-label="Pared para pintar. Arrastra para aplicar pintura."
         />
         <div className="floating-brush" ref={brushRef} aria-hidden="true">
-          <i className="brush-handle" />
-          <i className="brush-metal" />
-          <i className="brush-bristles" style={{ background: level.colors[selected] }} />
+          <i className="brush-cast-shadow" />
+          <i className="brush-handle"><b /></i>
+          <i className="brush-metal"><b /><b /></i>
+          <i
+            className="brush-bristles"
+            style={{ "--brush-color": level.colors[selected] } as React.CSSProperties}
+          >
+            <b />
+            <span /><span /><span /><span /><span />
+          </i>
+          <i
+            className="brush-paint-bead"
+            style={{ "--brush-color": level.colors[selected] } as React.CSSProperties}
+          />
         </div>
         <span className="paint-hint">Arrastra la brocha</span>
       </div>
