@@ -17,6 +17,7 @@ const CREATOR_COLS = 24;
 const CREATOR_ROWS = 18;
 const STORAGE_KEY = "pausa-painter-v1";
 const COMPLETION = 92;
+const BRUSH_BASE_ANGLE = 155;
 
 type Screen = "home" | "levels" | "play" | "creator";
 type Level = {
@@ -727,7 +728,7 @@ function PlayScreen({
     left: number,
     top: number,
     visible = true,
-    angle = -25,
+    angle = BRUSH_BASE_ANGLE,
   ) => {
     if (!brushRef.current) return;
     brushRef.current.style.transform = `translate3d(${left}px, ${top}px, 0) rotate(${angle}deg)`;
@@ -741,7 +742,7 @@ function PlayScreen({
     const p = pointerPosition(event);
     lastRef.current = { x: p.x, y: p.y };
     if (brushRef.current) brushRef.current.dataset.painting = "true";
-    moveBrush(p.left, p.top, true, -25);
+    moveBrush(p.left, p.top, true, BRUSH_BASE_ANGLE);
     applyPoint(p.x, p.y, event.pressure || 0.5);
   };
 
@@ -749,7 +750,9 @@ function PlayScreen({
     const p = pointerPosition(event);
     const previousScreen = brushScreenRef.current;
     const horizontalSpeed = previousScreen ? p.left - previousScreen.left : 0;
-    const angle = -25 + Math.max(-12, Math.min(12, horizontalSpeed * 1.7));
+    const angle =
+      BRUSH_BASE_ANGLE +
+      Math.max(-12, Math.min(12, horizontalSpeed * 1.7));
     moveBrush(p.left, p.top, true, angle);
     if (!drawingRef.current || !lastRef.current) return;
     const last = lastRef.current;
