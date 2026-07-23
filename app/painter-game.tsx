@@ -18,6 +18,7 @@ const CREATOR_ROWS = 18;
 const STORAGE_KEY = "pausa-painter-v1";
 const COMPLETION = 92;
 const BRUSH_BASE_ANGLE = 155;
+const ERROR_RED = "#ef352c";
 
 type Screen = "home" | "levels" | "play" | "creator";
 type Level = {
@@ -610,7 +611,11 @@ function PlayScreen({
         }
         const painted = paintRef.current[i];
         if (painted !== EMPTY) {
-          ctx.fillStyle = level.colors[painted] || "#c78d82";
+          const isWrong =
+            mistakeRef.current[i] === 1 && painted !== desired;
+          ctx.fillStyle = isWrong
+            ? ERROR_RED
+            : level.colors[painted] || "#c78d82";
           ctx.fillRect(x * cw - 0.6, y * ch - 0.6, cw + 1.2, ch + 1.2);
         }
       }
@@ -639,6 +644,23 @@ function PlayScreen({
       ctx.moveTo(mark.x - mark.radius * 0.65, mark.y - mark.radius * 0.22);
       ctx.lineTo(mark.x + mark.radius * 0.45, mark.y - mark.radius * 0.05);
       ctx.stroke();
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = ERROR_RED;
+    ctx.strokeStyle = "#a91f1a";
+    ctx.lineWidth = 0.8;
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        const i = y * COLS + x;
+        if (
+          mistakeRef.current[i] === 1 &&
+          paintRef.current[i] !== level.desired[i]
+        ) {
+          ctx.fillRect(x * cw + 0.25, y * ch + 0.25, cw - 0.5, ch - 0.5);
+          ctx.strokeRect(x * cw + 0.25, y * ch + 0.25, cw - 0.5, ch - 0.5);
+        }
+      }
     }
 
     ctx.globalAlpha = 0.1;
@@ -693,6 +715,7 @@ function PlayScreen({
         const color = selectedRef.current;
         if (desired === color) {
           paintRef.current[i] = color;
+          mistakeRef.current[i] = 0;
         } else {
           paintRef.current[i] = color;
           if (!mistakeRef.current[i]) {
@@ -703,7 +726,7 @@ function PlayScreen({
       }
     }
     if (newMistakes) {
-      setPenalty((p) => Math.min(100, p + newMistakes * 0.22));
+      setPenalty((p) => Math.min(100, p + newMistakes * 0.75));
       navigator.vibrate?.(8);
       canvasRef.current?.classList.add("gentle-warn");
       window.setTimeout(
