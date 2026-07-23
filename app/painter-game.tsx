@@ -48,27 +48,27 @@ const PALETTES = [
   ["#96A98B"],
   ["#D79A7D"],
   ["#9A9FBF"],
-  ["#8FA89A", "#D8A078"],
+  ["#3F8578", "#D29A2E"],
   ["#C38D86"],
-  ["#A7A0C8", "#D6AB7D"],
-  ["#8DA69A", "#D8A686"],
-  ["#9AA887", "#C79284", "#D8B983"],
-  ["#91A596", "#D7A28A"],
-  ["#B09AB8", "#D0A678", "#87A59A"],
-  ["#879F96", "#C6938A", "#D4B17C"],
-  ["#8FA593", "#C99288", "#AAA0C2"],
-  ["#D0A06F", "#91A595", "#C68E86"],
-  ["#9BAA91", "#D2A078", "#A59ABD"],
-  ["#8DA49B", "#B99B82"],
-  ["#C38F86", "#91A595", "#C9A86F"],
-  ["#9CA8C0", "#C99682"],
-  ["#91A18D", "#C69A82", "#A79BBB"],
-  ["#A59ABE", "#D0A071", "#809D92"],
-  ["#8BA196", "#C78F84", "#D2B079"],
-  ["#9AA98E", "#C59083"],
-  ["#A89BBC", "#88A095", "#D1A16F"],
-  ["#8EA39B", "#C68F82", "#C9A873"],
-  ["#8AA096", "#C88F83", "#A59ABD"],
+  ["#6F67A8", "#D29A2E"],
+  ["#3F8578", "#8B5E8B"],
+  ["#527F70", "#C47745", "#6F67A8"],
+  ["#4E8EAD", "#D29A2E"],
+  ["#8B5E8B", "#D29A2E", "#3F8578"],
+  ["#3F8578", "#C47745", "#6F67A8"],
+  ["#4E8EAD", "#D29A2E", "#8B5E8B"],
+  ["#D29A2E", "#3F8578", "#6F67A8"],
+  ["#66834D", "#C47745", "#6F67A8"],
+  ["#4E8EAD", "#C47745"],
+  ["#8B5E8B", "#3F8578", "#D29A2E"],
+  ["#4E8EAD", "#C47745"],
+  ["#66834D", "#C47745", "#6F67A8"],
+  ["#6F67A8", "#D29A2E", "#3F8578"],
+  ["#3F8578", "#C47745", "#D29A2E"],
+  ["#66834D", "#8B5E8B"],
+  ["#8B5E8B", "#3F8578", "#D29A2E"],
+  ["#4E8EAD", "#C47745", "#D29A2E"],
+  ["#3F8578", "#D29A2E", "#6F67A8"],
 ];
 
 const LEVEL_INFO = [
@@ -603,7 +603,7 @@ function PlayScreen({
         const i = y * COLS + x;
         const desired = level.desired[i];
         if (desired !== PROTECTED) {
-          ctx.fillStyle = `${level.colors[desired] || level.colors[0]}20`;
+          ctx.fillStyle = `${level.colors[desired] || level.colors[0]}34`;
           ctx.fillRect(x * cw, y * ch, cw + 0.5, ch + 0.5);
         } else {
           ctx.fillStyle = "#f7f0e5";
@@ -930,7 +930,7 @@ function CreatorScreen({
   updateSave: (data: SaveData) => void;
   onPlay: (level: Level) => void;
 }) {
-  const colors = ["#91A595", "#D29A82", "#AAA0C3"];
+  const colors = ["#3F8578", "#D29A2E", "#6F67A8"];
   const [name, setName] = useState("Mi rincón");
   const [tool, setTool] = useState(0);
   const toolRef = useRef(0);
