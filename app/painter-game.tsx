@@ -603,7 +603,7 @@ function PlayScreen({
         const i = y * COLS + x;
         const desired = level.desired[i];
         if (desired !== PROTECTED) {
-          ctx.fillStyle = `${level.colors[desired] || level.colors[0]}34`;
+          ctx.fillStyle = `${level.colors[desired] || level.colors[0]}70`;
           ctx.fillRect(x * cw, y * ch, cw + 0.5, ch + 0.5);
         } else {
           ctx.fillStyle = "#f7f0e5";
@@ -619,6 +619,47 @@ function PlayScreen({
           ctx.fillRect(x * cw - 0.6, y * ch - 0.6, cw + 1.2, ch + 1.2);
         }
       }
+    }
+
+    if (level.colors.length > 1) {
+      ctx.save();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = "rgba(65, 61, 53, 0.48)";
+      ctx.lineWidth = 1.7;
+      ctx.beginPath();
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          const i = y * COLS + x;
+          const desired = level.desired[i];
+          if (desired === PROTECTED || paintRef.current[i] !== EMPTY) continue;
+          if (x < COLS - 1) {
+            const right = i + 1;
+            const rightDesired = level.desired[right];
+            if (
+              rightDesired !== PROTECTED &&
+              rightDesired !== desired &&
+              paintRef.current[right] === EMPTY
+            ) {
+              ctx.moveTo((x + 1) * cw, y * ch);
+              ctx.lineTo((x + 1) * cw, (y + 1) * ch);
+            }
+          }
+          if (y < ROWS - 1) {
+            const below = i + COLS;
+            const belowDesired = level.desired[below];
+            if (
+              belowDesired !== PROTECTED &&
+              belowDesired !== desired &&
+              paintRef.current[below] === EMPTY
+            ) {
+              ctx.moveTo(x * cw, (y + 1) * ch);
+              ctx.lineTo((x + 1) * cw, (y + 1) * ch);
+            }
+          }
+        }
+      }
+      ctx.stroke();
+      ctx.restore();
     }
 
     const recentMarks = strokeMarksRef.current.slice(-24);
