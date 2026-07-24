@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
@@ -16,11 +17,11 @@ const PROTECTED = 255;
 const CREATOR_COLS = 24;
 const CREATOR_ROWS = 18;
 const STORAGE_KEY = "pausa-painter-v1";
-const COMPLETION = 92;
-const BRUSH_BASE_ANGLE = 155;
 const ERROR_RED = "#ef352c";
 
 type Screen = "home" | "levels" | "play" | "creator";
+type DifficultyKey = "easy" | "medium" | "hard";
+type BrushSizeKey = "small" | "medium" | "large";
 type Level = {
   id: string;
   number?: number;
@@ -42,7 +43,64 @@ type SaveData = {
   completed: number[];
   best: Record<string, number>;
   customLevels: CustomLevel[];
+  difficulty: DifficultyKey;
+  brushSize: BrushSizeKey;
 };
+
+const DIFFICULTIES: Record<
+  DifficultyKey,
+  {
+    label: string;
+    completion: number;
+    maxError: number;
+    scoreMultiplier: number;
+    note: string;
+  }
+> = {
+  easy: {
+    label: "Fácil",
+    completion: 85,
+    maxError: 12,
+    scoreMultiplier: 0.65,
+    note: "Margen generoso",
+  },
+  medium: {
+    label: "Medio",
+    completion: 92,
+    maxError: 6,
+    scoreMultiplier: 1,
+    note: "Equilibrado",
+  },
+  hard: {
+    label: "Difícil",
+    completion: 97,
+    maxError: 2,
+    scoreMultiplier: 1.35,
+    note: "Precisión estricta",
+  },
+};
+
+const BRUSH_SIZES: Record<
+  BrushSizeKey,
+  { label: string; radius: number }
+> = {
+  small: { label: "Pequeño", radius: 2.35 },
+  medium: { label: "Medio", radius: 3.65 },
+  large: { label: "Grande", radius: 5.1 },
+};
+
+const CREATOR_COLORS = ["#3F8578", "#D29A2E", "#6F67A8"];
+
+const CHAPTERS = [
+  "Primeros trazos",
+  "Formas y rincones",
+  "Murales con ritmo",
+  "Maestría tranquila",
+];
+
+function scoreKey(levelId: string, difficulty: DifficultyKey) {
+  return `${levelId}:${difficulty}`;
+}
 
 const PALETTES = [
   ["#96A98B"],
@@ -69,6 +127,14 @@ const PALETTES = [
   ["#8B5E8B", "#3F8578", "#D29A2E"],
   ["#4E8EAD", "#C47745", "#D29A2E"],
   ["#3F8578", "#D29A2E", "#6F67A8"],
+  ["#397A91", "#4F9A7D", "#7967A8"],
+  ["#2F7691", "#C5A23A", "#695B9F"],
+  ["#3E806F", "#D0A43A", "#6670A7"],
+  ["#367B91", "#5E8D58", "#8A6AA4"],
+  ["#4D86A5", "#66874F", "#D1A33A"],
+  ["#456F9C", "#8D6BA7", "#D0A23A"],
+  ["#357D78", "#4E75A4", "#C3A244"],
+  ["#3F7898", "#5D8D68", "#7564A3"],
 ];
 
 const LEVEL_INFO = [
@@ -96,6 +162,14 @@ const LEVEL_INFO = [
   ["Jardín zen", "Rodea las piedras con ondas de color."],
   ["Casitas", "Una pequeña calle al caer la tarde."],
   ["El gran mural", "Todo lo aprendido, reunido con calma."],
+  ["Aurora", "Tres cintas de luz cruzan un cielo con estrellas."],
+  ["Arcos de lluvia", "Pinta cada arco y deja libre su pequeño refugio."],
+  ["Panal tranquilo", "Cada celda guarda un tono; las juntas quedan limpias."],
+  ["Nenúfares", "Un estanque azul con hojas que flotan despacio."],
+  ["El faro", "La luz abre dos caminos sobre el mar."],
+  ["Guirnalda", "Bombillas suaves cuelgan sobre una pared tranquila."],
+  ["Papel plegado", "Tres planos se encuentran sobre pliegues limpios."],
+  ["Música del agua", "Tres corrientes se mezclan en un dibujo orgánico."],
 ];
 
 const TOTAL_LEVELS = LEVEL_INFO.length;
@@ -105,6 +179,8 @@ const defaultSave: SaveData = {
   completed: [],
   best: {},
   customLevels: [],
+  difficulty: "medium",
+  brushSize: "medium",
 };
 
 function buildLevel(number: number): Level {
@@ -300,6 +376,130 @@ function buildLevel(number: number): Level {
           inEllipse(x, y, 45, 29, 5, 12);
         if (leaf) set(x, y, PROTECTED);
       }
+      if (n === 25) {
+        const upper = 13 + Math.sin(nx * Math.PI * 2.4) * 4;
+        const lower = 34 + Math.sin(nx * Math.PI * 2.4 + 1.2) * 6;
+        set(x, y, y < upper ? 0 : y < lower ? 1 : 2);
+        const stars =
+          inCircle(x, y, 10, 8, 2.2) ||
+          inCircle(x, y, 29, 17, 2.9) ||
+          inCircle(x, y, 47, 8, 2) ||
+          inCircle(x, y, 66, 21, 2.5) ||
+          inCircle(x, y, 56, 39, 2.4);
+        if (stars) set(x, y, PROTECTED);
+      }
+      if (n === 26) {
+        const arch = Math.hypot(
+          (x - COLS / 2) / 1.08,
+          (y - ROWS) * 1.18,
+        );
+        if (arch < 10) set(x, y, PROTECTED);
+        else if (arch < 22) set(x, y, 2);
+        else if (arch < 36) set(x, y, 1);
+        else set(x, y, 0);
+      }
+      if (n === 27) {
+        let nearest = Infinity;
+        let cellColor = 0;
+        for (let row = -1; row <= 4; row++) {
+          for (let col = -1; col <= 3; col++) {
+            const cx = 10.5 + col * 24 + (row % 2 !== 0 ? 12 : 0);
+            const cy = 9 + row * 13.5;
+            const dx = (x - cx) / 10.5;
+            const dy = (y - cy) / 9;
+            const hexDistance = Math.max(
+              Math.abs(dy),
+              Math.abs(dx) * 0.866 + Math.abs(dy) * 0.5,
+            );
+            if (hexDistance < nearest) {
+              nearest = hexDistance;
+              cellColor = ((row * 2 + col) % 3 + 3) % 3;
+            }
+          }
+        }
+        set(x, y, nearest < 0.9 ? cellColor : PROTECTED);
+      }
+      if (n === 28) {
+        set(x, y, 0);
+        const pads = [
+          [13, 15, 8, 5, 1],
+          [35, 12, 7, 4.5, 2],
+          [59, 18, 9, 5, 1],
+          [25, 39, 9, 5.5, 2],
+          [54, 41, 8, 5, 1],
+        ] as const;
+        const pad = pads.find(([cx, cy, rx, ry]) =>
+          inEllipse(x, y, cx, cy, rx, ry),
+        );
+        if (pad) {
+          set(x, y, pad[4]);
+          if (inCircle(x, y, pad[0], pad[1], 2.2))
+            set(x, y, PROTECTED);
+        }
+      }
+      if (n === 29) {
+        set(x, y, y < 39 ? 0 : 1);
+        const beamWidth = Math.abs(x - COLS / 2) * 0.22 + 1.5;
+        const beam =
+          x > 2 &&
+          x < COLS - 2 &&
+          y < 32 &&
+          Math.abs(y - 18) < beamWidth;
+        if (beam) set(x, y, 2);
+        const tower = inRect(x, y, 32, 19, 44, ROWS);
+        const roof = y > 12 + Math.abs(x - COLS / 2) * 1.2 && y < 20;
+        if (tower || roof) set(x, y, PROTECTED);
+      }
+      if (n === 30) {
+        set(x, y, 0);
+        const bulbXs = [10, 24, 38, 52, 66];
+        const cordAt = (px: number) => 16 - ((px - COLS / 2) ** 2) / 180;
+        const bulbIndex = bulbXs.findIndex((cx) =>
+          inEllipse(x, y, cx, cordAt(cx) + 8, 5, 7),
+        );
+        if (bulbIndex >= 0) set(x, y, 1 + (bulbIndex % 2));
+        const wire = bulbXs.some((cx) => {
+          const cordY = cordAt(cx);
+          return (
+            Math.abs(x - cx) < 0.8 &&
+            y > cordY &&
+            y < cordY + 3
+          );
+        });
+        if (Math.abs(y - cordAt(x)) < 1.15 || wire)
+          set(x, y, PROTECTED);
+      }
+      if (n === 31) {
+        const descending = x * (ROWS / COLS);
+        const ascending = ROWS - descending;
+        if (
+          Math.abs(y - descending) < 1.15 ||
+          Math.abs(y - ascending) < 1.15 ||
+          inCircle(x, y, COLS / 2, ROWS / 2, 3.2)
+        ) {
+          set(x, y, PROTECTED);
+        } else if (y < descending && y < ascending) {
+          set(x, y, 0);
+        } else if (y > descending && y > ascending) {
+          set(x, y, 2);
+        } else {
+          set(x, y, 1);
+        }
+      }
+      if (n === 32) {
+        const flowX = Math.max(3, Math.min(COLS - 4, x)) / COLS;
+        const flowY = Math.max(3, Math.min(ROWS - 4, y)) / ROWS;
+        const flow =
+          Math.sin(flowX * Math.PI * 3.2) +
+          Math.sin(flowY * Math.PI * 3.6) +
+          0.55 * Math.sin((flowX + flowY) * Math.PI * 2.3);
+        set(x, y, flow < -0.55 ? 0 : flow < 0.65 ? 1 : 2);
+        const rests =
+          inEllipse(x, y, 14, 13, 5, 3) ||
+          inEllipse(x, y, 61, 14, 5, 3) ||
+          inEllipse(x, y, 37, 43, 6, 3.5);
+        if (rests) set(x, y, PROTECTED);
+      }
     }
   }
   return {
@@ -330,6 +530,14 @@ function loadSave(): SaveData {
       completed,
       best: parsed.best || {},
       customLevels: Array.isArray(parsed.customLevels) ? parsed.customLevels : [],
+      difficulty:
+        parsed.difficulty === "easy" || parsed.difficulty === "hard"
+          ? parsed.difficulty
+          : "medium",
+      brushSize:
+        parsed.brushSize === "small" || parsed.brushSize === "large"
+          ? parsed.brushSize
+          : "medium",
     };
   } catch {
     return defaultSave;
@@ -341,13 +549,18 @@ function saveProgress(data: SaveData) {
 }
 
 function MiniPattern({ level }: { level: Level }) {
-  const sample = Array.from({ length: 48 }, (_, i) => {
-    const x = i % 8;
-    const y = Math.floor(i / 8);
-    const sx = Math.min(COLS - 1, Math.floor((x / 7) * (COLS - 1)));
-    const sy = Math.min(ROWS - 1, Math.floor((y / 5) * (ROWS - 1)));
-    return level.desired[sy * COLS + sx];
-  });
+  const previewCols = 12;
+  const previewRows = 9;
+  const sample = Array.from(
+    { length: previewCols * previewRows },
+    (_, i) => {
+      const x = i % previewCols;
+      const y = Math.floor(i / previewCols);
+      const sx = Math.floor((x / (previewCols - 1)) * (COLS - 1));
+      const sy = Math.floor((y / (previewRows - 1)) * (ROWS - 1));
+      return level.desired[sy * COLS + sx];
+    },
+  );
   return (
     <div className="mini-pattern" aria-hidden="true">
       {sample.map((cell, i) => (
@@ -381,8 +594,11 @@ export default function PainterGame() {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    setSave(loadSave());
-    setHydrated(true);
+    const frame = requestAnimationFrame(() => {
+      setSave(loadSave());
+      setHydrated(true);
+    });
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   const updateSave = useCallback((next: SaveData) => {
@@ -414,6 +630,7 @@ export default function PainterGame() {
       {screen === "levels" && (
         <LevelsScreen
           save={save}
+          updateSave={updateSave}
           onBack={() => setScreen("home")}
           onPlay={startLevel}
           onCreator={() => setScreen("creator")}
@@ -498,48 +715,121 @@ function HomeScreen({
 
 function LevelsScreen({
   save,
+  updateSave,
   onBack,
   onPlay,
   onCreator,
 }: {
   save: SaveData;
+  updateSave: (data: SaveData) => void;
   onBack: () => void;
   onPlay: (level: Level) => void;
   onCreator: () => void;
 }) {
+  const activeDifficulty = DIFFICULTIES[save.difficulty];
+  const completedAtDifficulty = BUILT_LEVELS.filter((level) => {
+    const score =
+      save.best[scoreKey(level.id, save.difficulty)] ??
+      (save.difficulty === "medium" ? save.best[level.id] : undefined);
+    return score !== undefined;
+  }).length;
   return (
     <section className="levels-screen screen-enter">
       <header className="page-header">
         <button className="round-button back" onClick={onBack} aria-label="Volver">←</button>
         <div><p className="eyebrow">Tu paseo</p><h2>Niveles</h2></div>
-        <span className="progress-badge">{save.completed.length}/{TOTAL_LEVELS}</span>
+        <span
+          className="progress-badge"
+          aria-label={`${completedAtDifficulty} de ${TOTAL_LEVELS} completados en dificultad ${activeDifficulty.label.toLowerCase()}`}
+        >
+          {completedAtDifficulty}/{TOTAL_LEVELS}
+        </span>
       </header>
+
+      <section className="difficulty-panel" aria-label="Elegir dificultad">
+        <div className="difficulty-heading">
+          <span>
+            <small>Dificultad</small>
+            <strong>{activeDifficulty.label}</strong>
+          </span>
+          <p>
+            {activeDifficulty.completion}% obligatorio · hasta{" "}
+            {activeDifficulty.maxError}% fuera
+          </p>
+        </div>
+        <div className="difficulty-options">
+          {(Object.keys(DIFFICULTIES) as DifficultyKey[]).map((key) => {
+            const option = DIFFICULTIES[key];
+            return (
+              <button
+                key={key}
+                className={save.difficulty === key ? "selected" : ""}
+                onClick={() => updateSave({ ...save, difficulty: key })}
+                aria-pressed={save.difficulty === key}
+              >
+                <strong>{option.label}</strong>
+                <small>{option.completion}% · {option.maxError}% fuera</small>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
       <div className="level-path">
         {BUILT_LEVELS.map((level, index) => {
           const unlocked = index + 1 <= save.unlocked;
-          const done = save.completed.includes(index + 1);
+          const currentKey = scoreKey(level.id, save.difficulty);
+          const bestScore =
+            save.best[currentKey] ??
+            (save.difficulty === "medium" ? save.best[level.id] : undefined);
           return (
-            <button
-              className={`level-card ${!unlocked ? "locked" : ""}`}
-              key={level.id}
-              disabled={!unlocked}
-              onClick={() => onPlay(level)}
-              aria-label={
-                unlocked
-                  ? `Nivel ${index + 1}: ${level.name}`
-                  : `Nivel ${index + 1} bloqueado`
-              }
-            >
-              <MiniPattern level={level} />
-              <span className="level-copy">
-                <small>{done ? "Completado" : `Nivel ${index + 1}`}</small>
-                <strong>{level.name}</strong>
-                <em>{level.note}</em>
-              </span>
-              <span className={`level-status ${done ? "done" : ""}`}>
-                {done ? "✓" : unlocked ? "→" : "•"}
-              </span>
-            </button>
+            <Fragment key={level.id}>
+              {index % 8 === 0 && (
+                <div className="chapter-label">
+                  <span>Capítulo {Math.floor(index / 8) + 1}</span>
+                  <strong>{CHAPTERS[Math.floor(index / 8)]}</strong>
+                </div>
+              )}
+              <button
+                className={`level-card ${!unlocked ? "locked" : ""}`}
+                disabled={!unlocked}
+                onClick={() => onPlay(level)}
+                aria-label={
+                  unlocked
+                    ? `Nivel ${index + 1}: ${level.name}${
+                        bestScore !== undefined
+                          ? `, mejor puntuación ${bestScore}`
+                          : ""
+                      }`
+                    : `Nivel ${index + 1} bloqueado`
+                }
+              >
+                <MiniPattern level={level} />
+                <span className="level-copy">
+                  <small>
+                    {bestScore !== undefined
+                      ? "Completado"
+                      : `Nivel ${index + 1}`}
+                  </small>
+                  <strong>{level.name}</strong>
+                  <em>
+                    {bestScore !== undefined
+                      ? `Mejor en ${activeDifficulty.label.toLowerCase()}: ${bestScore}/100`
+                      : level.note}
+                  </em>
+                </span>
+                {bestScore !== undefined ? (
+                  <span className="level-score">
+                    <b>{bestScore}</b>
+                    <small>/100</small>
+                  </span>
+                ) : (
+                  <span className="level-status">
+                    {unlocked ? "→" : "•"}
+                  </span>
+                )}
+              </button>
+            </Fragment>
           );
         })}
       </div>
@@ -566,20 +856,27 @@ function PlayScreen({
   onNext: (level: Level) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const brushRef = useRef<HTMLDivElement>(null);
+  const indicatorRef = useRef<HTMLDivElement>(null);
   const paintRef = useRef(new Uint8Array(COLS * ROWS).fill(EMPTY));
   const mistakeRef = useRef(new Uint8Array(COLS * ROWS));
-  const strokeMarksRef = useRef<
-    Array<{ x: number; y: number; color: number; radius: number }>
-  >([]);
+  const renderFrameRef = useRef<number | null>(null);
   const drawingRef = useRef(false);
   const lastRef = useRef<{ x: number; y: number } | null>(null);
-  const brushScreenRef = useRef<{ left: number; top: number } | null>(null);
   const selectedRef = useRef(0);
+  const penaltyRef = useRef(0);
+  const warningActiveRef = useRef(false);
+  const [difficultyKey] = useState<DifficultyKey>(() => save.difficulty);
+  const difficulty = DIFFICULTIES[difficultyKey];
   const [selected, setSelected] = useState(0);
+  const [brushSize, setBrushSize] = useState<BrushSizeKey>(save.brushSize);
   const [progress, setProgress] = useState(0);
-  const [penalty, setPenalty] = useState(0);
+  const [errorRate, setErrorRate] = useState(0);
+  const [finalScore, setFinalScore] = useState<number | null>(null);
   const [finished, setFinished] = useState(false);
+  const [blockedByError, setBlockedByError] = useState(false);
+  const storedScore =
+    save.best[scoreKey(level.id, difficultyKey)] ??
+    (difficultyKey === "medium" ? save.best[level.id] : undefined);
   const targetCount = useMemo(
     () => Math.max(1, level.desired.filter((v) => v !== PROTECTED).length),
     [level],
@@ -662,31 +959,6 @@ function PlayScreen({
       ctx.restore();
     }
 
-    const recentMarks = strokeMarksRef.current.slice(-24);
-    for (const mark of recentMarks) {
-      const color = level.colors[mark.color] || level.colors[0];
-      ctx.globalAlpha = 0.92;
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.ellipse(
-        mark.x,
-        mark.y,
-        mark.radius * 1.08,
-        mark.radius * 0.88,
-        -0.2,
-        0,
-        Math.PI * 2,
-      );
-      ctx.fill();
-      ctx.globalAlpha = 0.14;
-      ctx.strokeStyle = "#fff8ec";
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.moveTo(mark.x - mark.radius * 0.65, mark.y - mark.radius * 0.22);
-      ctx.lineTo(mark.x + mark.radius * 0.45, mark.y - mark.radius * 0.05);
-      ctx.stroke();
-    }
-
     ctx.globalAlpha = 1;
     ctx.fillStyle = ERROR_RED;
     ctx.strokeStyle = "#a91f1a";
@@ -718,34 +990,47 @@ function PlayScreen({
 
   useEffect(() => {
     render();
+    return () => {
+      if (renderFrameRef.current !== null)
+        cancelAnimationFrame(renderFrameRef.current);
+    };
   }, [render]);
 
-  const calculateProgress = () => {
+  const calculateMetrics = useCallback(() => {
     let correct = 0;
+    let errors = 0;
     for (let i = 0; i < level.desired.length; i++) {
       if (
         level.desired[i] !== PROTECTED &&
         paintRef.current[i] === level.desired[i]
       )
         correct++;
+      if (
+        mistakeRef.current[i] === 1 &&
+        paintRef.current[i] !== level.desired[i]
+      )
+        errors++;
     }
-    const next = Math.min(100, Math.round((correct / targetCount) * 100));
-    setProgress(next);
-    return next;
-  };
+    const coverage = Math.min(100, (correct / targetCount) * 100);
+    const currentError = (errors / targetCount) * 100;
+    setProgress(Math.floor(coverage));
+    setErrorRate(Math.ceil(currentError * 10) / 10);
+    return { coverage, currentError };
+  }, [level, targetCount]);
 
-  const applyPoint = (px: number, py: number, pressure = 0.5) => {
+  const scheduleRender = useCallback(() => {
+    if (renderFrameRef.current !== null) return;
+    renderFrameRef.current = requestAnimationFrame(() => {
+      renderFrameRef.current = null;
+      render();
+      calculateMetrics();
+    });
+  }, [calculateMetrics, render]);
+
+  const applyPoint = (px: number, py: number) => {
     const gx = (px / 720) * COLS;
     const gy = (py / 530) * ROWS;
-    const radius = 3.2 + pressure * 1.3;
-    strokeMarksRef.current.push({
-      x: px,
-      y: py,
-      color: selectedRef.current,
-      radius: (radius / COLS) * 720,
-    });
-    if (strokeMarksRef.current.length > 360)
-      strokeMarksRef.current.splice(0, 120);
+    const radius = BRUSH_SIZES[brushSize].radius;
     let newMistakes = 0;
     for (let y = Math.floor(gy - radius); y <= Math.ceil(gy + radius); y++) {
       for (let x = Math.floor(gx - radius); x <= Math.ceil(gx + radius); x++) {
@@ -767,15 +1052,25 @@ function PlayScreen({
       }
     }
     if (newMistakes) {
-      setPenalty((p) => Math.min(100, p + newMistakes * 0.75));
-      navigator.vibrate?.(8);
-      canvasRef.current?.classList.add("gentle-warn");
-      window.setTimeout(
-        () => canvasRef.current?.classList.remove("gentle-warn"),
-        180,
+      const nextPenalty = Math.min(
+        100,
+        penaltyRef.current +
+          (newMistakes / targetCount) *
+            100 *
+            difficulty.scoreMultiplier,
       );
+      penaltyRef.current = nextPenalty;
+      if (!warningActiveRef.current) {
+        warningActiveRef.current = true;
+        navigator.vibrate?.(8);
+        canvasRef.current?.classList.add("gentle-warn");
+        window.setTimeout(() => {
+          canvasRef.current?.classList.remove("gentle-warn");
+          warningActiveRef.current = false;
+        }, 180);
+      }
     }
-    render();
+    scheduleRender();
   };
 
   const pointerPosition = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -785,19 +1080,28 @@ function PlayScreen({
       y: ((event.clientY - rect.top) / rect.height) * 530,
       left: event.clientX - rect.left,
       top: event.clientY - rect.top,
+      canvasWidth: rect.width,
     };
   };
 
-  const moveBrush = (
+  const moveIndicator = (
     left: number,
     top: number,
+    canvasWidth: number,
     visible = true,
-    angle = BRUSH_BASE_ANGLE,
   ) => {
-    if (!brushRef.current) return;
-    brushRef.current.style.transform = `translate3d(${left}px, ${top}px, 0) rotate(${angle}deg)`;
-    brushRef.current.style.opacity = visible ? "1" : "0";
-    brushScreenRef.current = { left, top };
+    if (!indicatorRef.current) return;
+    if (!visible) {
+      indicatorRef.current.style.opacity = "0";
+      return;
+    }
+    const radius = BRUSH_SIZES[brushSize].radius;
+    const diameter = (radius * 2 * canvasWidth) / COLS;
+    indicatorRef.current.style.width = `${diameter}px`;
+    indicatorRef.current.style.height = `${diameter}px`;
+    indicatorRef.current.style.transform =
+      `translate3d(${left}px, ${top}px, 0) translate(-50%, -50%)`;
+    indicatorRef.current.style.opacity = visible ? "1" : "0";
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
@@ -805,19 +1109,24 @@ function PlayScreen({
     drawingRef.current = true;
     const p = pointerPosition(event);
     lastRef.current = { x: p.x, y: p.y };
-    if (brushRef.current) brushRef.current.dataset.painting = "true";
-    moveBrush(p.left, p.top, true, BRUSH_BASE_ANGLE);
-    applyPoint(p.x, p.y, event.pressure || 0.5);
+    if (indicatorRef.current) indicatorRef.current.dataset.painting = "true";
+    moveIndicator(
+      p.left,
+      p.top,
+      p.canvasWidth,
+      true,
+    );
+    applyPoint(p.x, p.y);
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     const p = pointerPosition(event);
-    const previousScreen = brushScreenRef.current;
-    const horizontalSpeed = previousScreen ? p.left - previousScreen.left : 0;
-    const angle =
-      BRUSH_BASE_ANGLE +
-      Math.max(-12, Math.min(12, horizontalSpeed * 1.7));
-    moveBrush(p.left, p.top, true, angle);
+    moveIndicator(
+      p.left,
+      p.top,
+      p.canvasWidth,
+      true,
+    );
     if (!drawingRef.current || !lastRef.current) return;
     const last = lastRef.current;
     const distance = Math.hypot(p.x - last.x, p.y - last.y);
@@ -826,7 +1135,6 @@ function PlayScreen({
       applyPoint(
         last.x + ((p.x - last.x) * i) / steps,
         last.y + ((p.y - last.y) * i) / steps,
-        event.pressure || 0.5,
       );
     }
     lastRef.current = { x: p.x, y: p.y };
@@ -836,15 +1144,45 @@ function PlayScreen({
     if (!drawingRef.current) return;
     drawingRef.current = false;
     lastRef.current = null;
-    if (brushRef.current) brushRef.current.dataset.painting = "false";
-    const current = calculateProgress();
-    if (current >= COMPLETION && !finished) {
+    if (indicatorRef.current) indicatorRef.current.dataset.painting = "false";
+    const { coverage, currentError } = calculateMetrics();
+    const currentAccuracy = Math.max(
+      0,
+      Math.round(100 - penaltyRef.current),
+    );
+    setBlockedByError(false);
+    if (
+      coverage >= difficulty.completion &&
+      currentError > difficulty.maxError
+    ) {
+      setBlockedByError(true);
+      navigator.vibrate?.([12, 35, 12]);
+      return;
+    }
+    if (
+      coverage >= difficulty.completion &&
+      currentError <= difficulty.maxError &&
+      !finished
+    ) {
+      setBlockedByError(false);
       setFinished(true);
       navigator.vibrate?.([20, 40, 20]);
-      const score = Math.max(1, Math.round(100 - penalty));
+      const score = Math.max(
+        1,
+        Math.round(coverage * 0.5 + currentAccuracy * 0.5),
+      );
+      setFinalScore(score);
+      const key = scoreKey(level.id, difficultyKey);
       const next: SaveData = {
         ...save,
-        best: { ...save.best, [level.id]: Math.max(save.best[level.id] || 0, score) },
+        best: {
+          ...save.best,
+          [key]: Math.max(
+            save.best[key] ??
+              (difficultyKey === "medium" ? save.best[level.id] || 0 : 0),
+            score,
+          ),
+        },
       };
       if (level.number) {
         next.unlocked = Math.max(
@@ -857,9 +1195,34 @@ function PlayScreen({
     }
   };
 
+  const resetLevel = () => {
+    paintRef.current.fill(EMPTY);
+    mistakeRef.current.fill(0);
+    penaltyRef.current = 0;
+    warningActiveRef.current = false;
+    drawingRef.current = false;
+    lastRef.current = null;
+    if (indicatorRef.current) {
+      indicatorRef.current.dataset.painting = "false";
+      indicatorRef.current.style.opacity = "0";
+    }
+    setProgress(0);
+    setErrorRate(0);
+    setFinalScore(null);
+    setFinished(false);
+    setBlockedByError(false);
+    render();
+  };
+
   const chooseColor = (index: number) => {
     selectedRef.current = index;
     setSelected(index);
+  };
+
+  const chooseBrushSize = (size: BrushSizeKey) => {
+    setBrushSize(size);
+    updateSave({ ...save, brushSize: size });
+    if (indicatorRef.current) indicatorRef.current.style.opacity = "0";
   };
 
   const nextBuilt =
@@ -875,12 +1238,25 @@ function PlayScreen({
           <small>{level.custom ? "Tu mural" : `Nivel ${level.number}`}</small>
           <strong>{level.name}</strong>
         </div>
-        <div className="percent"><b>{progress}</b><span>%</span></div>
+        <div className="play-actions">
+          <button
+            className="round-button reset-button"
+            onClick={resetLevel}
+            aria-label="Reiniciar nivel"
+            title="Reiniciar nivel"
+          >
+            ↻
+          </button>
+          <div className="percent"><b>{progress}</b><span>%</span></div>
+        </div>
       </header>
       <div className="progress-track" aria-label={`${progress}% pintado`}>
         <i style={{ width: `${progress}%` }} />
       </div>
-      <p className="level-note">{level.note}</p>
+      <div className="level-note">
+        <p>{level.note}</p>
+        <span>{difficulty.label} · {difficulty.note}</span>
+      </div>
 
       <div className="paint-stage">
         <canvas
@@ -891,50 +1267,90 @@ function PlayScreen({
           onPointerMove={onPointerMove}
           onPointerUp={finishStroke}
           onPointerCancel={finishStroke}
-          onPointerLeave={(e) => {
-            if (!drawingRef.current) moveBrush(0, 0, false);
-            else onPointerMove(e);
+          onPointerLeave={() => {
+            if (!drawingRef.current) moveIndicator(0, 0, 0, false);
           }}
           aria-label="Pared para pintar. Arrastra para aplicar pintura."
         />
-        <div className="floating-brush" ref={brushRef} aria-hidden="true">
-          <i className="brush-cast-shadow" />
-          <i className="brush-handle"><b /></i>
-          <i className="brush-metal"><b /><b /></i>
-          <i
-            className="brush-bristles"
-            style={{ "--brush-color": level.colors[selected] } as React.CSSProperties}
-          >
-            <b />
-            <span /><span /><span /><span /><span />
-          </i>
-          <i
-            className="brush-paint-bead"
-            style={{ "--brush-color": level.colors[selected] } as React.CSSProperties}
-          />
+        <div
+          className="paint-indicator"
+          ref={indicatorRef}
+          style={{
+            "--indicator-color": level.colors[selected],
+          } as React.CSSProperties}
+          aria-hidden="true"
+        >
+          <i className="indicator-fill" />
+          <i className="indicator-ring" />
+          <i className="indicator-center" />
         </div>
-        <span className="paint-hint">Arrastra la brocha</span>
+        <span className="paint-hint">Arrastra para pintar</span>
       </div>
 
       <div className="play-tools">
-        <div className="palette" aria-label="Colores disponibles">
-          {level.colors.map((color, index) => (
-            <button
-              key={color}
-              className={selected === index ? "selected" : ""}
-              style={{ "--swatch": color } as React.CSSProperties}
-              onClick={() => chooseColor(index)}
-              aria-label={`Elegir color ${index + 1}`}
-            >
-              <i />
-            </button>
-          ))}
+        <div className="tool-group">
+          <span className="tool-label">Color</span>
+          <div className="palette" aria-label="Colores disponibles">
+            {level.colors.map((color, index) => (
+              <button
+                key={color}
+                className={selected === index ? "selected" : ""}
+                style={{ "--swatch": color } as React.CSSProperties}
+                onClick={() => chooseColor(index)}
+                aria-label={`Elegir color ${index + 1}`}
+                aria-pressed={selected === index}
+              >
+                <i />
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="care-meter">
-          <span>Precisión</span>
-          <div>{[0, 1, 2].map((i) => <i key={i} className={penalty > (i + 1) * 22 ? "faded" : ""}>✦</i>)}</div>
+        <div className="tool-group size-tools">
+          <span className="tool-label">Tamaño</span>
+          <div className="size-options" aria-label="Tamaño de pintura">
+            {(Object.keys(BRUSH_SIZES) as BrushSizeKey[]).map((key) => (
+              <button
+                key={key}
+                className={brushSize === key ? "selected" : ""}
+                onClick={() => chooseBrushSize(key)}
+                aria-label={`Tamaño ${BRUSH_SIZES[key].label.toLowerCase()}`}
+                aria-pressed={brushSize === key}
+              >
+                <i data-size={key} />
+                <small>{BRUSH_SIZES[key].label}</small>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      <div className="level-requirements" aria-label="Requisitos del nivel">
+        <div className={progress >= difficulty.completion ? "met" : ""}>
+          <span>Pintado</span>
+          <b>{progress}%</b>
+          <small>mín. {difficulty.completion}%</small>
+        </div>
+        <div className={errorRate <= difficulty.maxError ? "met" : "over"}>
+          <span>Fuera</span>
+          <b>
+            {Number.isInteger(errorRate)
+              ? errorRate.toFixed(0)
+              : errorRate.toFixed(1)}
+            %
+          </b>
+          <small>máx. {difficulty.maxError}%</small>
+        </div>
+      </div>
+
+      {blockedByError && (
+        <div className="retry-callout" role="status">
+          <span>
+            <strong>Hay demasiado rojo</strong>
+            Corrige las zonas de otro color o vuelve a empezar.
+          </span>
+          <button onClick={resetLevel}>Reiniciar</button>
+        </div>
+      )}
 
       {finished && (
         <div className="completion-layer" role="dialog" aria-modal="true" aria-label="Nivel completado">
@@ -942,7 +1358,15 @@ function PlayScreen({
             <div className="completion-mark"><LeafMark /></div>
             <p className="eyebrow">Pared terminada</p>
             <h2>Qué bonito<br />te ha quedado.</h2>
-            <p>Has cubierto {progress}% del mural con {Math.max(1, Math.round(100 - penalty))}% de precisión.</p>
+            <p>
+              Has cubierto {progress}% del mural en dificultad{" "}
+              {difficulty.label.toLowerCase()}, con una puntuación de{" "}
+              {finalScore || 1}/100.
+            </p>
+            <div className="completion-record">
+              <span>Mejor marca</span>
+              <strong>{Math.max(storedScore || 0, finalScore || 1)}/100</strong>
+            </div>
             {nextBuilt ? (
               <button className="primary-button" onClick={() => onNext(nextBuilt)}>
                 <span><small>Siguiente paseo</small>Nivel {nextBuilt.number} · {nextBuilt.name}</span><b>→</b>
@@ -952,7 +1376,12 @@ function PlayScreen({
                 <span><small>Guardar el momento</small>Volver a mis niveles</span><b>✓</b>
               </button>
             )}
-            <button className="text-button" onClick={onExit}>Salir al mapa</button>
+            <div className="completion-links">
+              <button className="text-button" onClick={resetLevel}>
+                ↻ Repetir para mejorar
+              </button>
+              <button className="text-button" onClick={onExit}>Salir al mapa</button>
+            </div>
           </div>
         </div>
       )}
@@ -971,7 +1400,6 @@ function CreatorScreen({
   updateSave: (data: SaveData) => void;
   onPlay: (level: Level) => void;
 }) {
-  const colors = ["#3F8578", "#D29A2E", "#6F67A8"];
   const [name, setName] = useState("Mi rincón");
   const [tool, setTool] = useState(0);
   const toolRef = useRef(0);
@@ -991,7 +1419,7 @@ function CreatorScreen({
     gridRef.current.forEach((cell, i) => {
       const x = i % CREATOR_COLS;
       const y = Math.floor(i / CREATOR_COLS);
-      ctx.fillStyle = cell === PROTECTED ? "#f8f2e9" : colors[cell];
+      ctx.fillStyle = cell === PROTECTED ? "#f8f2e9" : CREATOR_COLORS[cell];
       ctx.globalAlpha = cell === PROTECTED ? 1 : 0.7;
       ctx.fillRect(x * cw + 1, y * ch + 1, cw - 2, ch - 2);
     });
@@ -1034,7 +1462,7 @@ function CreatorScreen({
     const custom: CustomLevel = {
       id: `custom-${Date.now()}`,
       name: name.trim() || "Mi rincón",
-      colors,
+      colors: CREATOR_COLORS,
       desired,
       createdAt: Date.now(),
     };
@@ -1083,7 +1511,7 @@ function CreatorScreen({
       <div className="creator-tools">
         <p>Elige una zona</p>
         <div>
-          {colors.map((color, index) => (
+          {CREATOR_COLORS.map((color, index) => (
             <button
               key={color}
               className={tool === index ? "selected" : ""}

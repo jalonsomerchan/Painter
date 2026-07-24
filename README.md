@@ -1,7 +1,8 @@
 # Pausa
 
-Juego cozy de pintura táctil, optimizado para móviles. Incluye 24 niveles,
-penalización por precisión, progreso local y un creador de murales.
+Juego cozy de pintura táctil, optimizado para móviles. Incluye 32 niveles,
+tres dificultades, tamaños de pintura, récords por nivel, progreso local y un
+creador de murales.
 
 ## Desarrollo
 
