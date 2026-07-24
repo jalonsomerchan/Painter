@@ -2,6 +2,7 @@
 
 import {
   Fragment,
+  KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
@@ -100,6 +101,63 @@ const CHAPTERS = [
 
 function scoreKey(levelId: string, difficulty: DifficultyKey) {
   return `${levelId}:${difficulty}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeBest(value: unknown) {
+  if (!isRecord(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(
+        ([key, score]) =>
+          key.length > 0 &&
+          typeof score === "number" &&
+          Number.isFinite(score),
+      )
+      .map(([key, score]) => [
+        key,
+        Math.max(0, Math.min(100, Math.round(score as number))),
+      ]),
+  );
+}
+
+function normalizeCustomLevels(value: unknown): CustomLevel[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const colors = item.colors;
+    const desired = item.desired;
+    if (
+      typeof item.id !== "string" ||
+      typeof item.name !== "string" ||
+      typeof item.createdAt !== "number" ||
+      !Number.isFinite(item.createdAt) ||
+      !Array.isArray(colors) ||
+      colors.length === 0 ||
+      !colors.every((color) => typeof color === "string") ||
+      !Array.isArray(desired) ||
+      desired.length !== COLS * ROWS ||
+      !desired.some((cell) => cell !== PROTECTED) ||
+      !desired.every(
+        (cell) =>
+          cell === PROTECTED ||
+          (Number.isInteger(cell) && cell >= 0 && cell < colors.length),
+      )
+    )
+      return [];
+    return [
+      {
+        id: item.id,
+        name: item.name,
+        colors,
+        desired,
+        createdAt: item.createdAt,
+      },
+    ];
+  });
 }
 
 const PALETTES = [
@@ -520,16 +578,31 @@ const BUILT_LEVELS = Array.from(
 function loadSave(): SaveData {
   if (typeof window === "undefined") return defaultSave;
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    const completed = Array.isArray(parsed.completed) ? parsed.completed : [];
+    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    const parsed = isRecord(raw) ? raw : {};
+    const completed = Array.from(
+      new Set(
+        (Array.isArray(parsed.completed) ? parsed.completed : []).filter(
+          (level): level is number =>
+            Number.isInteger(level) && level >= 1 && level <= TOTAL_LEVELS,
+        ),
+      ),
+    ).sort((a, b) => a - b);
     const earnedUnlock = completed.length
       ? Math.min(TOTAL_LEVELS, Math.max(...completed) + 1)
       : 1;
+    const storedUnlock =
+      typeof parsed.unlocked === "number" && Number.isInteger(parsed.unlocked)
+        ? parsed.unlocked
+        : 1;
     return {
-      unlocked: Math.max(1, earnedUnlock, Number(parsed.unlocked) || 1),
+      unlocked: Math.min(
+        TOTAL_LEVELS,
+        Math.max(1, earnedUnlock, storedUnlock),
+      ),
       completed,
-      best: parsed.best || {},
-      customLevels: Array.isArray(parsed.customLevels) ? parsed.customLevels : [],
+      best: normalizeBest(parsed.best),
+      customLevels: normalizeCustomLevels(parsed.customLevels),
       difficulty:
         parsed.difficulty === "easy" || parsed.difficulty === "hard"
           ? parsed.difficulty
@@ -545,7 +618,12 @@ function loadSave(): SaveData {
 }
 
 function saveProgress(data: SaveData) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function MiniPattern({ level }: { level: Level }) {
@@ -591,6 +669,7 @@ export default function PainterGame() {
   const [screen, setScreen] = useState<Screen>("home");
   const [save, setSave] = useState<SaveData>(defaultSave);
   const [activeLevel, setActiveLevel] = useState<Level | null>(null);
+  const [creatorOrigin, setCreatorOrigin] = useState<"home" | "levels">("home");
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -602,13 +681,19 @@ export default function PainterGame() {
   }, []);
 
   const updateSave = useCallback((next: SaveData) => {
-    setSave(next);
-    saveProgress(next);
+    const persisted = saveProgress(next);
+    if (persisted) setSave(next);
+    return persisted;
   }, []);
 
   const startLevel = (level: Level) => {
     setActiveLevel(level);
     setScreen("play");
+  };
+
+  const openCreator = (origin: "home" | "levels") => {
+    setCreatorOrigin(origin);
+    setScreen("creator");
   };
 
   const continueLevel =
@@ -624,7 +709,7 @@ export default function PainterGame() {
           continueLevel={continueLevel}
           onContinue={() => startLevel(continueLevel)}
           onLevels={() => setScreen("levels")}
-          onCreator={() => setScreen("creator")}
+          onCreator={() => openCreator("home")}
         />
       )}
       {screen === "levels" && (
@@ -633,12 +718,12 @@ export default function PainterGame() {
           updateSave={updateSave}
           onBack={() => setScreen("home")}
           onPlay={startLevel}
-          onCreator={() => setScreen("creator")}
+          onCreator={() => openCreator("levels")}
         />
       )}
       {screen === "creator" && (
         <CreatorScreen
-          onBack={() => setScreen("home")}
+          onBack={() => setScreen(creatorOrigin)}
           save={save}
           updateSave={updateSave}
           onPlay={startLevel}
@@ -721,7 +806,7 @@ function LevelsScreen({
   onCreator,
 }: {
   save: SaveData;
-  updateSave: (data: SaveData) => void;
+  updateSave: (data: SaveData) => boolean;
   onBack: () => void;
   onPlay: (level: Level) => void;
   onCreator: () => void;
@@ -754,7 +839,7 @@ function LevelsScreen({
           </span>
           <p>
             {activeDifficulty.completion}% obligatorio · hasta{" "}
-            {activeDifficulty.maxError}% fuera
+            {activeDifficulty.maxError}% de error
           </p>
         </div>
         <div className="difficulty-options">
@@ -768,11 +853,14 @@ function LevelsScreen({
                 aria-pressed={save.difficulty === key}
               >
                 <strong>{option.label}</strong>
-                <small>{option.completion}% · {option.maxError}% fuera</small>
+                <small>{option.completion}% · {option.maxError}% error</small>
               </button>
             );
           })}
         </div>
+        <p className="difficulty-help">
+          Tu marca combina cuánto pintas y la precisión de todos tus trazos.
+        </p>
       </section>
 
       <div className="level-path">
@@ -851,7 +939,7 @@ function PlayScreen({
 }: {
   level: Level;
   save: SaveData;
-  updateSave: (data: SaveData) => void;
+  updateSave: (data: SaveData) => boolean;
   onExit: () => void;
   onNext: (level: Level) => void;
 }) {
@@ -861,25 +949,37 @@ function PlayScreen({
   const mistakeRef = useRef(new Uint8Array(COLS * ROWS));
   const renderFrameRef = useRef<number | null>(null);
   const drawingRef = useRef(false);
+  const activePointerRef = useRef<number | null>(null);
   const lastRef = useRef<{ x: number; y: number } | null>(null);
   const selectedRef = useRef(0);
   const penaltyRef = useRef(0);
   const warningActiveRef = useRef(false);
+  const completionRef = useRef<HTMLDivElement>(null);
   const [difficultyKey] = useState<DifficultyKey>(() => save.difficulty);
   const difficulty = DIFFICULTIES[difficultyKey];
   const [selected, setSelected] = useState(0);
   const [brushSize, setBrushSize] = useState<BrushSizeKey>(save.brushSize);
   const [progress, setProgress] = useState(0);
   const [errorRate, setErrorRate] = useState(0);
+  const [precision, setPrecision] = useState(100);
   const [finalScore, setFinalScore] = useState<number | null>(null);
+  const [isNewBest, setIsNewBest] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
   const [finished, setFinished] = useState(false);
   const [blockedByError, setBlockedByError] = useState(false);
+  const [resetPending, setResetPending] = useState(false);
   const storedScore =
     save.best[scoreKey(level.id, difficultyKey)] ??
     (difficultyKey === "medium" ? save.best[level.id] : undefined);
   const targetCount = useMemo(
     () => Math.max(1, level.desired.filter((v) => v !== PROTECTED).length),
     [level],
+  );
+  const requirementsMet =
+    progress >= difficulty.completion && errorRate <= difficulty.maxError;
+  const estimatedScore = Math.max(
+    1,
+    Math.round(progress * 0.5 + precision * 0.5),
   );
 
   const render = useCallback(() => {
@@ -996,6 +1096,12 @@ function PlayScreen({
     };
   }, [render]);
 
+  useEffect(() => {
+    if (!finished) return;
+    const frame = requestAnimationFrame(() => completionRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [finished]);
+
   const calculateMetrics = useCallback(() => {
     let correct = 0;
     let errors = 0;
@@ -1060,6 +1166,7 @@ function PlayScreen({
             difficulty.scoreMultiplier,
       );
       penaltyRef.current = nextPenalty;
+      setPrecision(Math.max(0, Math.round(100 - nextPenalty)));
       if (!warningActiveRef.current) {
         warningActiveRef.current = true;
         navigator.vibrate?.(8);
@@ -1105,8 +1212,16 @@ function PlayScreen({
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (
+      !event.isPrimary ||
+      activePointerRef.current !== null ||
+      (event.pointerType === "mouse" && event.button !== 0)
+    )
+      return;
     event.currentTarget.setPointerCapture(event.pointerId);
+    activePointerRef.current = event.pointerId;
     drawingRef.current = true;
+    setResetPending(false);
     const p = pointerPosition(event);
     lastRef.current = { x: p.x, y: p.y };
     if (indicatorRef.current) indicatorRef.current.dataset.painting = "true";
@@ -1120,6 +1235,12 @@ function PlayScreen({
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (!event.isPrimary) return;
+    if (
+      drawingRef.current &&
+      activePointerRef.current !== event.pointerId
+    )
+      return;
     const p = pointerPosition(event);
     moveIndicator(
       p.left,
@@ -1140,59 +1261,69 @@ function PlayScreen({
     lastRef.current = { x: p.x, y: p.y };
   };
 
-  const finishStroke = () => {
+  const finishStroke = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (activePointerRef.current !== event.pointerId) return;
+    activePointerRef.current = null;
     if (!drawingRef.current) return;
     drawingRef.current = false;
     lastRef.current = null;
-    if (indicatorRef.current) indicatorRef.current.dataset.painting = "false";
+    if (indicatorRef.current) {
+      indicatorRef.current.dataset.painting = "false";
+      if (event.pointerType !== "mouse")
+        indicatorRef.current.style.opacity = "0";
+    }
     const { coverage, currentError } = calculateMetrics();
+    const hasTooManyErrors =
+      coverage >= difficulty.completion &&
+      currentError > difficulty.maxError;
+    setBlockedByError(hasTooManyErrors);
+    if (hasTooManyErrors)
+      navigator.vibrate?.([12, 35, 12]);
+  };
+
+  const completeLevel = () => {
+    if (finished) return;
+    const { coverage, currentError } = calculateMetrics();
+    if (
+      coverage < difficulty.completion ||
+      currentError > difficulty.maxError
+    ) {
+      setBlockedByError(coverage >= difficulty.completion);
+      return;
+    }
     const currentAccuracy = Math.max(
       0,
       Math.round(100 - penaltyRef.current),
     );
-    setBlockedByError(false);
-    if (
-      coverage >= difficulty.completion &&
-      currentError > difficulty.maxError
-    ) {
-      setBlockedByError(true);
-      navigator.vibrate?.([12, 35, 12]);
-      return;
-    }
-    if (
-      coverage >= difficulty.completion &&
-      currentError <= difficulty.maxError &&
-      !finished
-    ) {
-      setBlockedByError(false);
-      setFinished(true);
-      navigator.vibrate?.([20, 40, 20]);
-      const score = Math.max(
-        1,
-        Math.round(coverage * 0.5 + currentAccuracy * 0.5),
+    const score = Math.max(
+      1,
+      Math.round(coverage * 0.5 + currentAccuracy * 0.5),
+    );
+    const key = scoreKey(level.id, difficultyKey);
+    const previousBest =
+      save.best[key] ??
+      (difficultyKey === "medium" ? save.best[level.id] || 0 : 0);
+    const next: SaveData = {
+      ...save,
+      best: {
+        ...save.best,
+        [key]: Math.max(previousBest, score),
+      },
+    };
+    if (level.number) {
+      next.unlocked = Math.max(
+        save.unlocked,
+        Math.min(TOTAL_LEVELS, level.number + 1),
       );
-      setFinalScore(score);
-      const key = scoreKey(level.id, difficultyKey);
-      const next: SaveData = {
-        ...save,
-        best: {
-          ...save.best,
-          [key]: Math.max(
-            save.best[key] ??
-              (difficultyKey === "medium" ? save.best[level.id] || 0 : 0),
-            score,
-          ),
-        },
-      };
-      if (level.number) {
-        next.unlocked = Math.max(
-          save.unlocked,
-          Math.min(TOTAL_LEVELS, level.number + 1),
-        );
-        next.completed = Array.from(new Set([...save.completed, level.number]));
-      }
-      updateSave(next);
+      next.completed = Array.from(new Set([...save.completed, level.number]));
     }
+    const persisted = updateSave(next);
+    setBlockedByError(false);
+    setFinalScore(score);
+    setIsNewBest(persisted && score > previousBest);
+    setSaveFailed(!persisted);
+    setFinished(true);
+    navigator.vibrate?.([20, 40, 20]);
   };
 
   const resetLevel = () => {
@@ -1201,6 +1332,7 @@ function PlayScreen({
     penaltyRef.current = 0;
     warningActiveRef.current = false;
     drawingRef.current = false;
+    activePointerRef.current = null;
     lastRef.current = null;
     if (indicatorRef.current) {
       indicatorRef.current.dataset.painting = "false";
@@ -1208,10 +1340,23 @@ function PlayScreen({
     }
     setProgress(0);
     setErrorRate(0);
+    setPrecision(100);
     setFinalScore(null);
+    setIsNewBest(false);
+    setSaveFailed(false);
     setFinished(false);
     setBlockedByError(false);
+    setResetPending(false);
     render();
+  };
+
+  const requestReset = () => {
+    if (progress === 0 && errorRate === 0) {
+      resetLevel();
+      return;
+    }
+    setResetPending(true);
+    navigator.vibrate?.(8);
   };
 
   const chooseColor = (index: number) => {
@@ -1230,6 +1375,43 @@ function PlayScreen({
       ? BUILT_LEVELS[level.number]
       : null;
 
+  const trapCompletionFocus = (
+    event: ReactKeyboardEvent<HTMLDivElement>,
+  ) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onExit();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>(
+        "button:not(:disabled), [href], [tabindex]:not([tabindex='-1'])",
+      ),
+    );
+    if (!focusable.length) {
+      event.preventDefault();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (
+      event.shiftKey &&
+      (document.activeElement === first ||
+        document.activeElement === completionRef.current)
+    ) {
+      event.preventDefault();
+      last.focus();
+    } else if (
+      !event.shiftKey &&
+      (document.activeElement === last ||
+        document.activeElement === completionRef.current)
+    ) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   return (
     <section className="play-screen screen-enter">
       <header className="play-header">
@@ -1241,7 +1423,7 @@ function PlayScreen({
         <div className="play-actions">
           <button
             className="round-button reset-button"
-            onClick={resetLevel}
+            onClick={requestReset}
             aria-label="Reiniciar nivel"
             title="Reiniciar nivel"
           >
@@ -1250,13 +1432,33 @@ function PlayScreen({
           <div className="percent"><b>{progress}</b><span>%</span></div>
         </div>
       </header>
-      <div className="progress-track" aria-label={`${progress}% pintado`}>
+      <div
+        className="progress-track"
+        role="progressbar"
+        aria-label="Porcentaje pintado"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progress}
+      >
         <i style={{ width: `${progress}%` }} />
       </div>
       <div className="level-note">
         <p>{level.note}</p>
-        <span>{difficulty.label} · {difficulty.note}</span>
+        <span>
+          {difficulty.label} ·{" "}
+          {storedScore !== undefined
+            ? `Récord ${storedScore}/100`
+            : difficulty.note}
+        </span>
       </div>
+
+      {resetPending && (
+        <div className="reset-confirm" role="alert">
+          <span>¿Reiniciar este intento?</span>
+          <button onClick={() => setResetPending(false)}>Seguir</button>
+          <button className="confirm" onClick={resetLevel}>Reiniciar</button>
+        </div>
+      )}
 
       <div className="paint-stage">
         <canvas
@@ -1267,6 +1469,7 @@ function PlayScreen({
           onPointerMove={onPointerMove}
           onPointerUp={finishStroke}
           onPointerCancel={finishStroke}
+          onLostPointerCapture={finishStroke}
           onPointerLeave={() => {
             if (!drawingRef.current) moveIndicator(0, 0, 0, false);
           }}
@@ -1290,7 +1493,11 @@ function PlayScreen({
       <div className="play-tools">
         <div className="tool-group">
           <span className="tool-label">Color</span>
-          <div className="palette" aria-label="Colores disponibles">
+          <div
+            className="palette"
+            role="group"
+            aria-label="Colores disponibles"
+          >
             {level.colors.map((color, index) => (
               <button
                 key={color}
@@ -1307,7 +1514,11 @@ function PlayScreen({
         </div>
         <div className="tool-group size-tools">
           <span className="tool-label">Tamaño</span>
-          <div className="size-options" aria-label="Tamaño de pintura">
+          <div
+            className="size-options"
+            role="group"
+            aria-label="Tamaño de pintura"
+          >
             {(Object.keys(BRUSH_SIZES) as BrushSizeKey[]).map((key) => (
               <button
                 key={key}
@@ -1331,7 +1542,7 @@ function PlayScreen({
           <small>mín. {difficulty.completion}%</small>
         </div>
         <div className={errorRate <= difficulty.maxError ? "met" : "over"}>
-          <span>Fuera</span>
+          <span>Errores</span>
           <b>
             {Number.isInteger(errorRate)
               ? errorRate.toFixed(0)
@@ -1340,7 +1551,28 @@ function PlayScreen({
           </b>
           <small>máx. {difficulty.maxError}%</small>
         </div>
+        <div className="precision-stat">
+          <span>Precisión</span>
+          <b>{precision}%</b>
+          <small>todos los trazos</small>
+        </div>
       </div>
+
+      <button
+        className="primary-button finish-level"
+        onClick={completeLevel}
+        disabled={!requirementsMet}
+      >
+        <span>
+          <small>
+            {requirementsMet
+              ? `Puntuación estimada ${estimatedScore}/100`
+              : "Cumple pintado y errores"}
+          </small>
+          {requirementsMet ? "Terminar nivel" : "Sigue pintando"}
+        </span>
+        <b aria-hidden="true">{requirementsMet ? "✓" : "○"}</b>
+      </button>
 
       {blockedByError && (
         <div className="retry-callout" role="status">
@@ -1353,34 +1585,67 @@ function PlayScreen({
       )}
 
       {finished && (
-        <div className="completion-layer" role="dialog" aria-modal="true" aria-label="Nivel completado">
-          <div className="completion-card">
+        <div
+          className="completion-layer"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="completion-title"
+          onKeyDown={trapCompletionFocus}
+        >
+          <div
+            className="completion-card"
+            ref={completionRef}
+            tabIndex={-1}
+          >
             <div className="completion-mark"><LeafMark /></div>
             <p className="eyebrow">Pared terminada</p>
-            <h2>Qué bonito<br />te ha quedado.</h2>
+            <h2 id="completion-title">Qué bonito<br />te ha quedado.</h2>
             <p>
               Has cubierto {progress}% del mural en dificultad{" "}
               {difficulty.label.toLowerCase()}, con una puntuación de{" "}
               {finalScore || 1}/100.
             </p>
             <div className="completion-record">
-              <span>Mejor marca</span>
-              <strong>{Math.max(storedScore || 0, finalScore || 1)}/100</strong>
+              <span>
+                {saveFailed
+                  ? "No se pudo guardar"
+                  : isNewBest
+                    ? "Nuevo récord"
+                    : "Mejor marca"}
+              </span>
+              <strong>
+                {saveFailed
+                  ? finalScore || 1
+                  : Math.max(storedScore || 0, finalScore || 1)}
+                /100
+              </strong>
             </div>
-            {nextBuilt ? (
+            {nextBuilt && !saveFailed ? (
               <button className="primary-button" onClick={() => onNext(nextBuilt)}>
                 <span><small>Siguiente paseo</small>Nivel {nextBuilt.number} · {nextBuilt.name}</span><b>→</b>
               </button>
             ) : (
               <button className="primary-button" onClick={onExit}>
-                <span><small>Guardar el momento</small>Volver a mis niveles</span><b>✓</b>
+                <span>
+                  <small>
+                    {saveFailed
+                      ? "Este intento no se guardó"
+                      : level.custom
+                        ? "Tu mural está guardado"
+                        : "Guardar el momento"}
+                  </small>
+                  {level.custom ? "Volver a mis murales" : "Volver a mis niveles"}
+                </span>
+                <b>✓</b>
               </button>
             )}
             <div className="completion-links">
               <button className="text-button" onClick={resetLevel}>
                 ↻ Repetir para mejorar
               </button>
-              <button className="text-button" onClick={onExit}>Salir al mapa</button>
+              <button className="text-button" onClick={onExit}>
+                {level.custom ? "Salir al taller" : "Salir al mapa"}
+              </button>
             </div>
           </div>
         </div>
@@ -1397,7 +1662,7 @@ function CreatorScreen({
 }: {
   onBack: () => void;
   save: SaveData;
-  updateSave: (data: SaveData) => void;
+  updateSave: (data: SaveData) => boolean;
   onPlay: (level: Level) => void;
 }) {
   const [name, setName] = useState("Mi rincón");
@@ -1407,6 +1672,7 @@ function CreatorScreen({
   const gridRef = useRef(new Array(CREATOR_COLS * CREATOR_ROWS).fill(0));
   const drawingRef = useRef(false);
   const [savedPulse, setSavedPulse] = useState(false);
+  const [creatorError, setCreatorError] = useState<string | null>(null);
 
   const renderCreator = useCallback(() => {
     const canvas = canvasRef.current;
@@ -1443,6 +1709,7 @@ function CreatorScreen({
           gridRef.current[ty * CREATOR_COLS + tx] = toolRef.current;
       }
     }
+    if (toolRef.current !== PROTECTED) setCreatorError(null);
     renderCreator();
   };
 
@@ -1452,6 +1719,10 @@ function CreatorScreen({
   };
 
   const saveLevel = () => {
+    if (gridRef.current.every((cell) => cell === PROTECTED)) {
+      setCreatorError("Añade al menos una zona de color para poder jugar.");
+      return;
+    }
     const desired = new Array(COLS * ROWS).fill(0).map((_, i) => {
       const x = i % COLS;
       const y = Math.floor(i / COLS);
@@ -1459,16 +1730,25 @@ function CreatorScreen({
       const sy = Math.min(CREATOR_ROWS - 1, Math.floor((y / ROWS) * CREATOR_ROWS));
       return gridRef.current[sy * CREATOR_COLS + sx];
     });
+    const createdAt = Date.now();
     const custom: CustomLevel = {
-      id: `custom-${Date.now()}`,
+      id: `custom-${createdAt}`,
       name: name.trim() || "Mi rincón",
-      colors: CREATOR_COLORS,
+      colors: [...CREATOR_COLORS],
       desired,
-      createdAt: Date.now(),
+      createdAt,
     };
-    updateSave({ ...save, customLevels: [custom, ...save.customLevels] });
-    setSavedPulse(true);
-    window.setTimeout(() => setSavedPulse(false), 1200);
+    const persisted = updateSave({
+      ...save,
+      customLevels: [custom, ...save.customLevels],
+    });
+    if (persisted) {
+      setCreatorError(null);
+      setSavedPulse(true);
+      window.setTimeout(() => setSavedPulse(false), 1200);
+    } else {
+      setCreatorError("No se pudo guardar en este dispositivo.");
+    }
   };
 
   const asLevel = (custom: CustomLevel): Level => ({
@@ -1518,15 +1798,21 @@ function CreatorScreen({
               style={{ "--swatch": color } as React.CSSProperties}
               onClick={() => selectTool(index)}
               aria-label={`Zona de color ${index + 1}`}
+              aria-pressed={tool === index}
             ><i /></button>
           ))}
           <button
             className={`protected-tool ${tool === PROTECTED ? "selected" : ""}`}
             onClick={() => selectTool(PROTECTED)}
             aria-label="Zona protegida"
+            aria-pressed={tool === PROTECTED}
           ><i>◇</i><span>No pintar</span></button>
         </div>
       </div>
+
+      {creatorError && (
+        <p className="creator-error" role="alert">{creatorError}</p>
+      )}
 
       <button className={`primary-button save-design ${savedPulse ? "saved" : ""}`} onClick={saveLevel}>
         <span><small>{savedPulse ? "Guardado en este dispositivo" : "Cuando esté listo"}</small>{savedPulse ? "Mural guardado" : "Guardar mi mural"}</span>
@@ -1538,11 +1824,29 @@ function CreatorScreen({
           <p className="eyebrow">Mis murales</p>
           {save.customLevels.map((custom) => {
             const level = asLevel(custom);
+            const bestScore =
+              save.best[scoreKey(custom.id, save.difficulty)] ??
+              (save.difficulty === "medium"
+                ? save.best[custom.id]
+                : undefined);
             return (
               <button key={custom.id} className="custom-card" onClick={() => onPlay(level)}>
                 <MiniPattern level={level} />
-                <span><strong>{custom.name}</strong><small>Tocar para pintar</small></span>
-                <b>→</b>
+                <span>
+                  <strong>{custom.name}</strong>
+                  <small>
+                    {bestScore !== undefined
+                      ? `Mejor en ${DIFFICULTIES[save.difficulty].label.toLowerCase()}: ${bestScore}/100`
+                      : "Tocar para pintar"}
+                  </small>
+                </span>
+                {bestScore !== undefined ? (
+                  <span className="level-score custom-score">
+                    <b>{bestScore}</b><small>/100</small>
+                  </span>
+                ) : (
+                  <b>→</b>
+                )}
               </button>
             );
           })}

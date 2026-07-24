@@ -44,6 +44,13 @@ button:active {
   transform: scale(0.975);
 }
 
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid #2f6f64;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 5px rgba(255,255,255,.8);
+}
+
 .app-shell {
   position: relative;
   width: min(100%, 510px);
@@ -520,7 +527,7 @@ button:active {
 .difficulty-options small {
   overflow: hidden;
   max-width: 100%;
-  font-size: .54rem;
+  font-size: .6rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -533,6 +540,14 @@ button:active {
 
 .difficulty-options button.selected small {
   color: rgba(255,255,255,.72);
+}
+
+.difficulty-help {
+  margin: .65rem .2rem 0;
+  color: var(--muted);
+  text-align: center;
+  font-size: .62rem;
+  line-height: 1.4;
 }
 
 .level-path {
@@ -694,6 +709,7 @@ button:active {
 
 .play-title {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   padding-left: .85rem;
@@ -708,10 +724,13 @@ button:active {
 }
 
 .play-title strong {
+  overflow: hidden;
   margin-top: .1rem;
   font-family: Georgia, serif;
   font-size: 1.1rem;
   font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .play-actions {
@@ -787,6 +806,40 @@ button:active {
   font-weight: 750;
 }
 
+.reset-confirm {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  margin: -.2rem 0 .55rem;
+  padding: .45rem .5rem .45rem .7rem;
+  border-radius: .95rem;
+  color: var(--muted);
+  background: rgba(255,255,255,.62);
+  box-shadow: 0 8px 20px rgba(79,69,54,.08);
+  animation: materialize 180ms ease both;
+}
+
+.reset-confirm span {
+  flex: 1;
+  font-size: .66rem;
+  font-weight: 720;
+}
+
+.reset-confirm button {
+  min-height: 2.75rem;
+  padding: 0 .65rem;
+  border-radius: .7rem;
+  color: var(--sage-dark);
+  background: rgba(126,151,131,.1);
+  font-size: .62rem;
+  font-weight: 750;
+}
+
+.reset-confirm button.confirm {
+  color: white;
+  background: #b8423c;
+}
+
 .paint-stage {
   position: relative;
   width: 100%;
@@ -804,7 +857,14 @@ button:active {
   height: 100%;
   display: block;
   touch-action: none;
+}
+
+.paint-stage canvas {
   cursor: none;
+}
+
+.creator-canvas-wrap canvas {
+  cursor: crosshair;
 }
 
 .paint-stage canvas.gentle-warn {
@@ -846,6 +906,21 @@ button:active {
   pointer-events: none;
   filter: drop-shadow(0 3px 5px rgba(54,48,39,.22));
   will-change: width, height, transform;
+}
+
+.paint-indicator::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -16px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: white;
+  box-shadow:
+    0 0 0 2px var(--indicator-color),
+    0 2px 5px rgba(54,48,39,.28);
+  transform: translate(-50%, -50%);
 }
 
 .paint-indicator i {
@@ -906,7 +981,7 @@ button:active {
   display: block;
   margin: 0 0 .48rem .1rem;
   color: var(--muted);
-  font-size: .55rem;
+  font-size: .62rem;
   font-weight: 800;
   letter-spacing: .09em;
   text-transform: uppercase;
@@ -987,7 +1062,7 @@ button:active {
 .size-options small {
   overflow: hidden;
   width: 100%;
-  font-size: .5rem;
+  font-size: .58rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -999,7 +1074,7 @@ button:active {
 
 .level-requirements {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: .55rem;
   margin-top: .55rem;
 }
@@ -1016,7 +1091,7 @@ button:active {
 }
 
 .level-requirements span {
-  font-size: .61rem;
+  font-size: .66rem;
   font-weight: 750;
 }
 
@@ -1029,7 +1104,7 @@ button:active {
 .level-requirements small {
   grid-column: 1 / -1;
   margin-top: .1rem;
-  font-size: .51rem;
+  font-size: .57rem;
 }
 
 .level-requirements .met {
@@ -1040,6 +1115,27 @@ button:active {
 .level-requirements .over {
   color: #b92d28;
   background: rgba(239,53,44,.1);
+}
+
+.level-requirements .precision-stat {
+  color: #6d628f;
+  background: rgba(117,100,163,.1);
+}
+
+.finish-level {
+  min-height: 3.65rem;
+  margin-top: .55rem;
+}
+
+.finish-level:disabled {
+  color: var(--muted);
+  background: rgba(114,109,98,.1);
+  box-shadow: none;
+  cursor: default;
+}
+
+.finish-level:disabled small {
+  color: var(--muted);
 }
 
 .retry-callout {
@@ -1100,6 +1196,10 @@ button:active {
   text-align: center;
   box-shadow: 0 30px 70px rgba(52,47,39,.24);
   animation: card-up 460ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+.completion-card:focus {
+  outline: none;
 }
 
 @keyframes card-up {
@@ -1282,7 +1382,7 @@ button:active {
 .custom-card {
   width: 100%;
   display: grid;
-  grid-template-columns: 5rem 1fr 2rem;
+  grid-template-columns: 5rem 1fr 3rem;
   align-items: center;
   gap: .8rem;
   padding: .6rem .75rem .6rem .6rem;
@@ -1296,7 +1396,19 @@ button:active {
 .custom-card strong { font-family: Georgia, serif; font-size: .95rem; font-weight: 400; }
 .custom-card small { margin-top: .18rem; color: var(--muted); font-size: .6rem; }
 
-@media (max-width: 390px) {
+.custom-card .custom-score {
+  min-width: 2.8rem;
+  min-height: 2.8rem;
+}
+
+.creator-error {
+  margin: -.35rem .15rem .75rem;
+  color: #a92c27;
+  font-size: .68rem;
+  font-weight: 700;
+}
+
+@media (max-width: 420px) {
   .play-tools {
     grid-template-columns: 1fr;
     gap: .4rem;
@@ -1315,6 +1427,14 @@ button:active {
 
   .palette {
     justify-content: flex-start;
+  }
+
+  .level-requirements {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .level-requirements .precision-stat {
+    grid-column: 1 / -1;
   }
 }
 

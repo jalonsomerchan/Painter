@@ -33,7 +33,13 @@ test("server-renders the Pausa loading shell", async () => {
   assert.match(html, /<title>Pausa — pinta despacio<\/title>/i);
   assert.match(html, /class="app-shell loading-shell"/);
   assert.match(html, /class="leaf-mark"/);
-  assert.match(html, /href="\/favicon\.svg"/);
+  assert.match(html, /href="http:\/\/localhost:3000\/favicon\.svg"/);
+  assert.match(html, /property="og:title" content="Pausa — pinta despacio"/);
+  assert.match(
+    html,
+    /property="og:image" content="http:\/\/localhost:3000\/og\.png"/,
+  );
+  assert.match(html, /name="twitter:card" content="summary_large_image"/);
   assert.doesNotMatch(html, /starter|Your site is taking shape/i);
 });
 
@@ -48,7 +54,10 @@ test("keeps saved progress and motion preferences in the game bundle", async () 
   assert.match(game, /difficulty:\s*"medium"/);
   assert.match(game, /brushSize:\s*"medium"/);
   assert.match(game, /function scoreKey/);
+  assert.match(game, /function normalizeCustomLevels/);
   assert.match(game, /const resetLevel/);
+  assert.match(game, /const completeLevel/);
+  assert.match(game, /activePointerRef/);
   assert.match(css, /\.loading-shell\s*\{/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
 });
